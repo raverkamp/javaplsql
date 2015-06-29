@@ -33,9 +33,11 @@ public class Main {
         Ddl.createType(con, "create type date_array as table of date;");
         Ddl.call(con, a.get("p1_spec"));
         Ddl.call(con, a.get("p1_body"));
-        //test1(con);
-        //test2(con);
+        test1(con);
+        test2(con);
         test3(con);
+        test4(con);
+        test5(con);
     }
 
     static void test1(OracleConnection con) throws SQLException {
@@ -86,6 +88,54 @@ public class Main {
                     && m2.get("Y").equals("" + m.get("Y") + m.get("Y")))) {
                 throw new RuntimeException("fail");
             }
+        }
+    }
+
+    static void test4(OracleConnection con) throws SQLException {
+        HashMap<String, Object> ar = new HashMap<>();
+        ArrayList l0 = new ArrayList<>();
+        for (int j = 0; j < 3; j++) {
+            ArrayList<Map<String, Object>> l = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                Map<String, Object> a = new HashMap();
+                a.put("X", new BigDecimal(i));
+                a.put("Y", "x" + i);
+                a.put("Z", new Date(2013, 5, 1));
+                l.add(a);
+            }
+            l0.add(l);
+        }
+        ar.put("A", l0);
+        Map<String, Object> res = Call.CallProcedure(con, "BDMS", "P1", "P4", ar);
+        System.out.println(res);
+        ArrayList l2 = (ArrayList) res.get("A");
+        for (int i = 0; i < l2.size(); i++) {
+            ArrayList x = (ArrayList) l2.get(i);
+            ArrayList y = (ArrayList) l0.get(i);
+            for (int j = 0; j < x.size(); j++) {
+                Map<String, Object> m1 = (Map<String, Object>) x.get(j);
+                Map<String, Object> m2 = (Map<String, Object>) y.get(j);
+                if (!(m1.get("X").equals(m2.get("X")) && m1.get("Y").equals(m2.get("Y"))
+                        && m1.get("Z").equals(m2.get("Z")))) {
+                    throw new RuntimeException("fail");
+                }
+            }
+
+        }
+    }
+
+    static void test5(OracleConnection con) throws SQLException {
+        HashMap<String, Object> ar = new HashMap<>();
+        Map<String, Object> a = new HashMap();
+        a.put("X", null);
+        a.put("Y", null);
+        a.put("Z", null);
+        ar.put("A", a);
+        Map<String, Object> res = Call.CallProcedure(con, "BDMS", "P1", "P2", ar);
+        System.out.println(res);
+        Map<String, Object> m = (Map<String, Object>) res.get("B");
+        if (!(m.get("X") == null && m.get("Y") == null)) {
+            throw new RuntimeException("fail");
         }
     }
 

@@ -5,11 +5,16 @@ procedure p(xi number,yi varchar2,zi date,xo out number,yo out varchar2,zo out d
 
 type r1 is record (x number, y varchar2(200), z date);
 
-type t1 is table of r1;
 
 procedure p2(a r1, b out r1);
 
+type t1 is table of r1;
+
 procedure p3(a t1, b out t1);
+
+type t2 is table of t1;
+
+procedure p4(a in out t2);
 
 end;
 ## p1_body
@@ -44,4 +49,8 @@ begin
   b:= res;
 end;
 
+procedure p4(a in out t2) is
+begin
+  null;
+end;
 end;
