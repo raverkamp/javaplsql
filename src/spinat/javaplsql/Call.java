@@ -235,7 +235,11 @@ public class Call {
         }
 
         public void add(Date d) {
-            this.date.add(new Timestamp(d.getTime()));
+            if (d == null) {
+                this.date.add(null);
+            } else {
+                this.date.add(new Timestamp(d.getTime()));
+            }
         }
     }
 
@@ -470,11 +474,11 @@ public class Call {
         sb.append("an number_array;\n");
         sb.append("av varchar2_array;\n");
         sb.append("ad date_array;\n");
-        sb.append("inn integer :=0;\n");
-        sb.append("inv integer :=0;\n");
-        sb.append("ind integer :=0;\n");
+        sb.append("inn integer :=1;\n");
+        sb.append("inv integer :=1;\n");
+        sb.append("ind integer :=1;\n");
         for (int i = 0; i < p.arguments.size(); i++) {
-            sb.append("p" + i).append(" ").append(p.arguments.get(i).type.plsqlName());
+            sb.append("p" + i+"$").append(" ").append(p.arguments.get(i).type.plsqlName());
             sb.append(";\n");
         }
         sb.append("begin\n");
@@ -486,23 +490,23 @@ public class Call {
             if (a.direction.equals("OUT")) {
                 continue;
             }
-            readOutThing(sb, a.type, "p" + i);
+            readOutThing(sb, a.type, "p" + i + "$");
         }
         sb.append(p.package_ + "." + p.name + "(");
         for (int i = 0; i < p.arguments.size(); i++) {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append("p" + i);
+            sb.append("p" + i + "$");
         }
         sb.append(");\n");
-        sb.append("an:= number_array();av;=varchar2_array;ad:=date_array;\n");
+        sb.append("an:= number_array();av:=varchar2_array();ad:=date_array();\n");
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
             if (a.direction.equals("IN")) {
                 continue;
             }
-            genWriteThing(sb, a.type, "p" + i);
+            genWriteThing(sb, a.type, "p" + i + "$");
         }
         sb.append("?:= an;\n");
         sb.append("?:= av;\n");
@@ -514,6 +518,7 @@ public class Call {
     public static Map<String, Object> CallProcedure(OracleConnection oc,
             Procedure p, Map<String, Object> args) throws SQLException {
         String s = createStatementString(p);
+        System.out.println(s);
         OracleCallableStatement cstm = (OracleCallableStatement) oc.prepareCall(s);
         ArgArrays aa = new ArgArrays();
         for (Argument arg : p.arguments) {
@@ -524,9 +529,9 @@ public class Call {
             fillThing(aa, arg.type, o);
         }
         {
-            oracle.sql.ARRAY na = (oracle.sql.ARRAY) oc.createARRAY("NUMBER_ARRAY", aa.decimal);
-            oracle.sql.ARRAY va = (oracle.sql.ARRAY) oc.createARRAY("VARCHAR2_ARRAY", aa.varchar2);
-            oracle.sql.ARRAY da = (oracle.sql.ARRAY) oc.createARRAY("DATE_ARRAY", aa.date);
+            oracle.sql.ARRAY na = (oracle.sql.ARRAY) oc.createARRAY("NUMBER_ARRAY", aa.decimal.toArray(new BigDecimal[0]));
+            oracle.sql.ARRAY va = (oracle.sql.ARRAY) oc.createARRAY("VARCHAR2_ARRAY", aa.varchar2.toArray(new String[0]));
+            oracle.sql.ARRAY da = (oracle.sql.ARRAY) oc.createARRAY("DATE_ARRAY", aa.date.toArray(new Timestamp[0]));
 
             cstm.setArray(1, na);
             cstm.setArray(2, va);
@@ -535,6 +540,7 @@ public class Call {
         cstm.registerOutParameter(4, OracleTypes.ARRAY, "NUMBER_ARRAY");
         cstm.registerOutParameter(5, OracleTypes.ARRAY, "VARCHAR2_ARRAY");
         cstm.registerOutParameter(6, OracleTypes.ARRAY, "DATE_ARRAY");
+
         cstm.execute();
         ARRAY no = cstm.getARRAY(4);
         ARRAY vo = cstm.getARRAY(5);
@@ -571,11 +577,11 @@ public class Call {
                 + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,"
                 + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
                 + " from all_arguments \n"
-                + " where owner = ? /*and package_name = ? and object_name = ?*/\n"
+                + " where owner = ? and package_name = ? and object_name = ?\n"
                 + " order by owner,package_name,object_name,position,sequence");
         pstm.setString(1, owner);
-     //   pstm.setString(2, pack);
-     //   pstm.setString(3, name);
+        pstm.setString(2, pack);
+        pstm.setString(3, name);
         ResultSet rs = pstm.executeQuery();
         r = fetchArgumentsRows(rs);
         rs.close();
