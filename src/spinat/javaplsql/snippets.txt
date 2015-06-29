@@ -5,7 +5,11 @@ procedure p(xi number,yi varchar2,zi date,xo out number,yo out varchar2,zo out d
 
 type r1 is record (x number, y varchar2(200), z date);
 
+type t1 is table of r1;
+
 procedure p2(a r1, b out r1);
+
+procedure p3(a t1, b out t1);
 
 end;
 ## p1_body
@@ -23,6 +27,21 @@ begin
 b.x := a.x+1;
 b.y := a.y||a.y;
 b.z := trunc(sysdate);
+end;
+
+procedure p3(a t1, b out t1) is
+x r1;
+res t1 := new t1();
+begin
+  for i in a.first .. a.last loop
+    x := a(i);
+    x.x := x.x+1;
+    x.y := x.y||x.y;
+    x.z := trunc(sysdate)+i;
+    res.extend();
+    res(res.last) := x;
+  end loop;
+  b:= res;
 end;
 
 end;

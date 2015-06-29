@@ -32,10 +32,10 @@ public class Ddl {
             throw new RuntimeException(ex);
         }
     }
-    
-    public static void call(OracleConnection con,String ... s) throws SQLException {
+
+    public static void call(OracleConnection con, String... s) throws SQLException {
         try (Statement stm = con.createStatement()) {
-            stm.execute(String.join("\n",s));
+            stm.execute(String.join("\n", s));
         }
     }
 }

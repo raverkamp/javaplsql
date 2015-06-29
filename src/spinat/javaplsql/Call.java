@@ -173,7 +173,8 @@ public class Call {
             t.name = r.type_subname;
             a.next();
             Field f2 = eatArg(a);
-            f.type = f2.type;
+            t.slottype = f2.type;
+            f.type = t;
             return f;
         }
         if (r.data_type.equals("PL/SQL RECORD")) {
@@ -329,7 +330,7 @@ public class Call {
         public Date readDate() {
             Timestamp ts = this.date.get(posdate);
             posdate++;
-            if (ts==null) {
+            if (ts == null) {
                 return null;
             }
             return new Date(ts.getTime());
@@ -397,16 +398,17 @@ public class Call {
     static int counter = 0;
 
     static void readOutTable(StringBuilder sb, TableType t, String target) {
-        sb.append("size := an(inn); inn:= inn+1;\n");
-        sb.append("if size is null then\n");
+        sb.append("size_ := an(inn); inn:= inn+1;\n");
+        sb.append("if size_ is null then\n");
         sb.append("  ").append(target).append(":=null;\n");
         sb.append("else\n");
         sb.append(" ").append(target).append(" := new ")
-                .append(t.package_).append(".").append(t.name).append("()");
+                .append(t.package_).append(".").append(t.name).append("();\n");
         String index = "i" + counter;
         counter++;
         String newTarget = target + "(" + index + ")";
-        sb.append("  for ").append(counter).append(" in 1 .. size loop\n");
+        sb.append("  for ").append(index).append(" in 1 .. size_ loop\n");
+        sb.append("" + target + ".extend();\n");
         readOutThing(sb, t.slottype, newTarget);
         sb.append("end loop;\n");
         sb.append("end if;\n");
@@ -455,12 +457,13 @@ public class Call {
         sb.append(" if " + source + " is null then\n");
         sb.append("    an(an.last) := null;\n");
         sb.append("else \n");
-        sb.append("  an(an.last) := nvl(" + source + ",0);\n");
+        sb.append("  an(an.last) := nvl(" + source + ".last, 0);\n");
         String index = "i" + counter;
         counter++;
-        sb.append("for " + index + " in 1 .. nvl(" + source + ",0) loop\n");
+        sb.append("for " + index + " in 1 .. nvl(" + source + ".last,0) loop\n");
         genWriteThing(sb, t.slottype, source + "(" + index + ")");
         sb.append("end loop;\n");
+        sb.append("end if;\n");
     }
 
     static void genWriteNamedType(StringBuilder sb, NamedType t, String source) {
@@ -484,8 +487,9 @@ public class Call {
         sb.append("inn integer :=1;\n");
         sb.append("inv integer :=1;\n");
         sb.append("ind integer :=1;\n");
+        sb.append("size_ integer;");
         for (int i = 0; i < p.arguments.size(); i++) {
-            sb.append("p" + i+"$").append(" ").append(p.arguments.get(i).type.plsqlName());
+            sb.append("p" + i + "$").append(" ").append(p.arguments.get(i).type.plsqlName());
             sb.append(";\n");
         }
         sb.append("begin\n");

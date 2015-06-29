@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,7 +34,8 @@ public class Main {
         Ddl.call(con, a.get("p1_spec"));
         Ddl.call(con, a.get("p1_body"));
         //test1(con);
-        test2(con);
+        //test2(con);
+        test3(con);
     }
 
     static void test1(OracleConnection con) throws SQLException {
@@ -47,19 +49,43 @@ public class Main {
             throw new RuntimeException("fail");
         }
     }
-    
+
     static void test2(OracleConnection con) throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
-        Map<String,Object> a = new HashMap();
+        Map<String, Object> a = new HashMap();
         a.put("X", 12);
         a.put("Y", "x");
         a.put("Z", new Date());
-        ar.put("A",a);
+        ar.put("A", a);
         Map<String, Object> res = Call.CallProcedure(con, "BDMS", "P1", "P2", ar);
         System.out.println(res);
-        Map<String,Object> m = (Map<String,Object>)res.get("B");
+        Map<String, Object> m = (Map<String, Object>) res.get("B");
         if (!(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"))) {
             throw new RuntimeException("fail");
+        }
+    }
+
+    static void test3(OracleConnection con) throws SQLException {
+        HashMap<String, Object> ar = new HashMap<>();
+        ArrayList<Map<String, Object>> l = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            Map<String, Object> a = new HashMap();
+            a.put("X", new BigDecimal(i));
+            a.put("Y", "x" + i);
+            a.put("Z", new Date());
+            l.add(a);
+        }
+        ar.put("A", l);
+        Map<String, Object> res = Call.CallProcedure(con, "BDMS", "P1", "P3", ar);
+        System.out.println(res);
+        ArrayList<Map<String, Object>> l2 = (ArrayList<Map<String, Object>>) res.get("B");
+        for (int i = 0; i < l.size(); i++) {
+            Map<String, Object> m = l.get(i);
+            Map<String, Object> m2 = l2.get(i);
+            if (!(m2.get("X").equals(((BigDecimal) m.get("X")).add(BigDecimal.ONE))
+                    && m2.get("Y").equals("" + m.get("Y") + m.get("Y")))) {
+                throw new RuntimeException("fail");
+            }
         }
     }
 
