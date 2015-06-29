@@ -1,7 +1,11 @@
 ## p1_spec
 create or replace package p1 as
-
+-- test package for javaplsql
 procedure p(xi number,yi varchar2,zi date,xo out number,yo out varchar2,zo out date);
+
+type r1 is record (x number, y varchar2(200), z date);
+
+procedure p2(a r1, b out r1);
 
 end;
 ## p1_body
@@ -13,4 +17,12 @@ begin
   yo := yi||yi;
   zo := zi;
 end;
+
+procedure p2(a r1,b out r1) is
+begin
+b.x := a.x+1;
+b.y := a.y||a.y;
+b.z := trunc(sysdate);
+end;
+
 end;

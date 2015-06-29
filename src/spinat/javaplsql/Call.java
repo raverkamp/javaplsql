@@ -169,8 +169,8 @@ public class Call {
         if (r.data_type.equals("TABLE")) {
             TableType t = new TableType();
             t.owner = r.type_owner;
-            t.name = r.type_name;
-            t.package_ = r.type_subname;
+            t.package_ = r.type_name;
+            t.name = r.type_subname;
             a.next();
             Field f2 = eatArg(a);
             f.type = f2.type;
@@ -178,12 +178,17 @@ public class Call {
         }
         if (r.data_type.equals("PL/SQL RECORD")) {
             RecordType t = new RecordType();
+            t.owner = r.type_owner;
+            t.package_ = r.type_name;
+            t.name = r.type_subname;
             t.fields = new ArrayList<>();
             int level = r.data_level;
             a.next();
             while (!a.atEnd() && a.getRow().data_level > level) {
                 t.fields.add(eatArg(a));
             }
+            f.type = t;
+            return f;
 
         }
         throw new RuntimeException("unsupported type: " + r.data_type);
@@ -324,6 +329,9 @@ public class Call {
         public Date readDate() {
             Timestamp ts = this.date.get(posdate);
             posdate++;
+            if (ts==null) {
+                return null;
+            }
             return new Date(ts.getTime());
         }
     }
@@ -436,7 +444,6 @@ public class Call {
     }
 
     static void genWriteRecord(StringBuilder sb, RecordType t, String source) {
-        sb.append("declare x " + t.package_ + "." + t.name + "; begin " + source + ":= x; end;\n");
         for (Field f : t.fields) {
             String a = source + "." + f.name;
             genWriteThing(sb, f.type, a);
@@ -578,7 +585,7 @@ public class Call {
                 + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
                 + " from all_arguments \n"
                 + " where owner = ? and package_name = ? and object_name = ?\n"
-                + " order by owner,package_name,object_name,position,sequence");
+                + " order by owner,package_name,object_name,sequence");
         pstm.setString(1, owner);
         pstm.setString(2, pack);
         pstm.setString(3, name);

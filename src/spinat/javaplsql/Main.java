@@ -25,20 +25,40 @@ public class Main {
         props.load(new FileInputStream(s));
         OracleConnection con = (OracleConnection) DriverManager.getConnection(props.getProperty("url"),
                 props.getProperty("user"), props.getProperty("pw"));
-        
-        HashMap<String,String> a = loadSnippets(Main.class,"spinat/javaplsql/snippets.txt");
+
+        HashMap<String, String> a = loadSnippets(Main.class, "spinat/javaplsql/snippets.txt");
         Ddl.createType(con, "create type number_array as table of number;");
         Ddl.createType(con, "create type varchar2_array as table of varchar2(32767);");
         Ddl.createType(con, "create type date_array as table of date;");
         Ddl.call(con, a.get("p1_spec"));
         Ddl.call(con, a.get("p1_body"));
-        HashMap<String,Object> ar = new HashMap<>();
+        //test1(con);
+        test2(con);
+    }
+
+    static void test1(OracleConnection con) throws SQLException {
+        HashMap<String, Object> ar = new HashMap<>();
         ar.put("XI", 12);
-        ar.put("YI","x");
+        ar.put("YI", "x");
         ar.put("ZI", new Date());
-        Map<String,Object> res = Call.CallProcedure(con, "BDMS", "P1", "P", ar);
+        Map<String, Object> res = Call.CallProcedure(con, "BDMS", "P1", "P", ar);
         System.out.println(res);
         if (!(res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"))) {
+            throw new RuntimeException("fail");
+        }
+    }
+    
+    static void test2(OracleConnection con) throws SQLException {
+        HashMap<String, Object> ar = new HashMap<>();
+        Map<String,Object> a = new HashMap();
+        a.put("X", 12);
+        a.put("Y", "x");
+        a.put("Z", new Date());
+        ar.put("A",a);
+        Map<String, Object> res = Call.CallProcedure(con, "BDMS", "P1", "P2", ar);
+        System.out.println(res);
+        Map<String,Object> m = (Map<String,Object>)res.get("B");
+        if (!(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"))) {
             throw new RuntimeException("fail");
         }
     }
@@ -75,10 +95,10 @@ public class Main {
             }
         }
     }
-    
-     public static void call(OracleConnection con,String ... s) throws SQLException {
+
+    public static void call(OracleConnection con, String... s) throws SQLException {
         try (Statement stm = con.createStatement()) {
-            stm.execute(String.join("\n",s));
+            stm.execute(String.join("\n", s));
         }
     }
 }
