@@ -1,0 +1,16 @@
+## p1_spec
+create or replace package p1 as
+
+procedure p(xi number,yi varchar2,zi date,xo out number,yo out varchar2,zo out date);
+
+end;
+## p1_body
+create or replace package body p1 as
+
+procedure p(xi number,yi varchar2,zi date,xo out number,yo out varchar2,zo out date) is
+begin
+  xo := xi;
+  yo := yi;
+  zo := zi;
+end;
+end;
