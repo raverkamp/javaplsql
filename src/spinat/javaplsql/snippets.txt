@@ -16,6 +16,10 @@ type t2 is table of t1;
 
 procedure p4(a in out t2);
 
+type t3 is table of varchar2(32767);
+
+procedure p5(a in t3,b out t3);
+
 end;
 ## p1_body
 create or replace package body p1 as
@@ -52,5 +56,10 @@ end;
 procedure p4(a in out t2) is
 begin
   null;
+end;
+
+procedure p5(a in t3,b out t3) is
+begin
+  b:= a;
 end;
 end;
