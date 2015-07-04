@@ -34,6 +34,7 @@ public class Main {
         Ddl.createType(con, "create type date_array as table of date;");
         Ddl.call(con, a.get("p1_spec"));
         Ddl.call(con, a.get("p1_body"));
+        Ddl.call(con, a.get("proc1"));
         System.out.println(Call.resolveName(con, "p1"));
         System.out.println(Call.resolveName(con, "bdms.p1"));
         System.out.println(Call.resolveName(con, "bdms.p1.p"));
@@ -41,39 +42,44 @@ public class Main {
         System.out.println(Call.resolveName(con, "sys.dbms_utility.name_resolve"));
         //System.out.println(Call.resolveName(con, "bdms.dbms_utility.name_resolve"));
 
-        test1(con, user);
-        test2(con, user);
-        test3(con, user, 2);
-        test4(con, user);
-        test5(con, user);
-        test6(con, user);
-        perfTest(con, user, 18);
-        sizeTest(con, user, 1, 1);
-        sizeTest(con, user, 10, 100);
-        sizeTest(con, user, 10, 100);
-        varcharSizeTest(con, user, 32767, 20);
+        test1(con);
+        test2(con);
+        test3(con, 2);
+        test4(con);
+        test5(con);
+        test6(con);
+        test7(con);
+        test8(con);
+        test9(con);
+
+        perfTest(con, 18);
+        sizeTest(con, 1, 1);
+        sizeTest(con, 10, 100);
+        sizeTest(con, 10, 100);
+        varcharSizeTest(con, 32767, 20);
+
     }
 
-    static void test1(OracleConnection con, String user) throws SQLException {
+    static void test1(OracleConnection con) throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
         ar.put("XI", 12);
         ar.put("YI", "x");
         ar.put("ZI", new Date());
-        Map<String, Object> res = Call.CallProcedure(con, user, "P1", "P", ar);
+        Map<String, Object> res = Call.CallProcedure(con, "P1.P", ar);
         System.out.println(res);
         if (!(res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"))) {
             throw new RuntimeException("fail");
         }
     }
 
-    static void test2(OracleConnection con, String user) throws SQLException {
+    static void test2(OracleConnection con) throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
         Map<String, Object> a = new HashMap();
         a.put("X", 12);
         a.put("Y", "x");
         a.put("Z", new Date());
         ar.put("A", a);
-        Map<String, Object> res = Call.CallProcedure(con, user, "P1", "P2", ar);
+        Map<String, Object> res = Call.CallProcedure(con, "P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
         if (!(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"))) {
@@ -81,7 +87,7 @@ public class Main {
         }
     }
 
-    static void test3(OracleConnection con, String user, int size) throws SQLException {
+    static void test3(OracleConnection con, int size) throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
         ArrayList<Map<String, Object>> l = new ArrayList<>();
         for (int i = 0; i < size; i++) {
@@ -92,7 +98,7 @@ public class Main {
             l.add(a);
         }
         ar.put("A", l);
-        Map<String, Object> res = Call.CallProcedure(con, user, "P1", "P3", ar);
+        Map<String, Object> res = Call.CallProcedure(con, "P1.P3", ar);
         ArrayList<Map<String, Object>> l2 = (ArrayList<Map<String, Object>>) res.get("B");
         for (int i = 0; i < l.size(); i++) {
             Map<String, Object> m = l.get(i);
@@ -104,7 +110,7 @@ public class Main {
         }
     }
 
-    static void test4(OracleConnection con, String user) throws SQLException {
+    static void test4(OracleConnection con) throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
         ArrayList l0 = new ArrayList<>();
         for (int j = 0; j < 3; j++) {
@@ -119,7 +125,7 @@ public class Main {
             l0.add(l);
         }
         ar.put("A", l0);
-        Map<String, Object> res = Call.CallProcedure(con, user, "P1", "P4", ar);
+        Map<String, Object> res = Call.CallProcedure(con, "P1.P4", ar);
         System.out.println(res);
         ArrayList l2 = (ArrayList) res.get("A");
         for (int i = 0; i < l2.size(); i++) {
@@ -137,14 +143,14 @@ public class Main {
         }
     }
 
-    static void test5(OracleConnection con, String user) throws SQLException {
+    static void test5(OracleConnection con) throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
         Map<String, Object> a = new HashMap();
         a.put("X", null);
         a.put("Y", null);
         a.put("Z", null);
         ar.put("A", a);
-        Map<String, Object> res = Call.CallProcedure(con, user, "P1", "P2", ar);
+        Map<String, Object> res = Call.CallProcedure(con, "P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
         if (!(m.get("X") == null && m.get("Y") == null)) {
@@ -152,14 +158,14 @@ public class Main {
         }
     }
 
-    static void test6(OracleConnection con, String user) throws SQLException {
+    static void test6(OracleConnection con) throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
         ArrayList l0 = new ArrayList<>();
         for (int j = 0; j < 3; j++) {
             l0.add(null);
         }
         ar.put("A", l0);
-        Map<String, Object> res = Call.CallProcedure(con, user, "P1", "P4", ar);
+        Map<String, Object> res = Call.CallProcedure(con, "P1.P4", ar);
         System.out.println(res);
         ArrayList l2 = (ArrayList) res.get("A");
         for (int i = 0; i < l2.size(); i++) {
@@ -169,12 +175,12 @@ public class Main {
         }
     }
 
-    static void perfTest(OracleConnection con, String user, int k) throws SQLException {
+    static void perfTest(OracleConnection con, int k) throws SQLException {
         int n = 1;
         DbmsOutput.enableDbmsOutput(con, 0);
         for (int i = 0; i < k; i++) {
             long l = System.currentTimeMillis();
-            test3(con, user, n);
+            test3(con, n);
             l = System.currentTimeMillis() - l;
             System.out.println("" + n + ": " + l);
             for (String s : DbmsOutput.fetchDbmsOutput(con)) {
@@ -185,7 +191,7 @@ public class Main {
         }
     }
 
-    static void sizeTest(OracleConnection con, String user, int rec_size, int args_size) throws SQLException {
+    static void sizeTest(OracleConnection con, int rec_size, int args_size) throws SQLException {
         StringBuilder sb = new StringBuilder();
         sb.append("create or replace package p2 as\n")
                 .append("type r is record (\n");
@@ -234,11 +240,11 @@ public class Main {
         for (int i = 0; i < args_size; i++) {
             args.put("IN" + i, m);
         }
-        Map<String, Object> res = Call.CallProcedure(con, user, "P2", "P", args);
+        Map<String, Object> res = Call.CallProcedure(con, "P2.P", args);
         System.out.println(res);
     }
 
-    static void varcharSizeTest(OracleConnection con, String user, int vsize, int asize) throws SQLException {
+    static void varcharSizeTest(OracleConnection con, int vsize, int asize) throws SQLException {
         ArrayList<String> a = new ArrayList<>();
         for (int i = 0; i < asize; i++) {
             StringBuilder sb = new StringBuilder();
@@ -251,13 +257,42 @@ public class Main {
         }
         Map<String, Object> args = new HashMap<>();
         args.put("A", a);
-        Map<String, Object> res = Call.CallProcedure(con, user, "P1", "P5", args);
+        Map<String, Object> res = Call.CallProcedure(con, "P1.P5", args);
         ArrayList<String> b = (ArrayList<String>) res.get("B");
         for (int i = 0; i < Math.max(a.size(), b.size()); i++) {
             if (!(a.get(i).equals(b.get(i)))) {
                 throw new RuntimeException("fail");
             }
         }
+    }
+
+    static void test7(OracleConnection con) throws SQLException {
+        Map<String, Object> a = new HashMap<>();
+        a.put("X", 23);
+        a.put("Y", "roland");
+        a.put("Z", new java.util.Date());
+        Map<String, Object> m = Call.CallProcedure(con, "proc1", a);
+    }
+
+    static void test8(OracleConnection con) throws SQLException {
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> m = Call.CallProcedure(con, "p1.p6", a);
+    }
+
+    static void test9(OracleConnection con) throws SQLException {
+        Map<String, Object> a = new HashMap<>();
+        a.put("A", -123);
+        a.put("B", "rote gruetze");
+        java.sql.Timestamp dat = new java.sql.Timestamp(2014, 12, 3, 23, 45, 1, 0);
+        a.put("C", dat);
+        Map<String, Object> m = Call.CallProcedure(con, "p1.f7", a);
+        Map<String, Object> r = (Map<String, Object>) m.get("RETURN");
+        if (!(r.get("X").equals(BigDecimal.valueOf(-123))
+                && r.get("Y").equals("rote gruetze")
+                && r.get("Z").equals(dat))) {
+            throw new RuntimeException("fail");
+        }
+
     }
 
     public static HashMap<String, String> loadSnippets(Class cl, String name)

@@ -16,7 +16,6 @@ import oracle.jdbc.OracleCallableStatement;
 import oracle.jdbc.OracleConnection;
 import oracle.jdbc.OracleTypes;
 import oracle.sql.ARRAY;
-import oracle.sql.ArrayDescriptor;
 
 public class Call {
 
@@ -83,8 +82,10 @@ public class Call {
 
     public static class Procedure {
 
+        Type returnType;
+        String original_name;
         String owner;
-        String package_;
+        String package_; // could be null
         String name;
         int overload;
         ArrayList<Argument> arguments;
@@ -122,6 +123,9 @@ public class Call {
             r.data_level = rs.getInt("DATA_LEVEL");
             r.data_type = rs.getString("DATA_TYPE");
             r.overload = rs.getInt("OVERLOAD");
+            if (rs.wasNull()) {
+                r.overload = -1; //just not null
+            }
             r.in_out = rs.getString("IN_OUT");
             r.type_owner = rs.getString("TYPE_OWNER");
             r.type_name = rs.getString("TYPE_NAME");
@@ -203,6 +207,17 @@ public class Call {
         p.overload = a.getRow().overload;
         p.owner = a.getRow().owner;
         p.arguments = new ArrayList<>();
+        if (a.getRow().data_type == null) {
+            // this is a procedure with no arguments
+            a.next();
+            return p;
+        }
+        if (a.getRow().position == 0) {
+            // this a function the return type is the first argument, the 
+            // argument name is null
+            Field f = eatArg(a);
+            p.returnType = f.type;
+        }
         while (!a.atEnd()) {
             String io = a.getRow().in_out;
             Field f = eatArg(a);
@@ -491,8 +506,11 @@ public class Call {
         sb.append("inv integer :=1;\n");
         sb.append("ind integer :=1;\n");
         sb.append("size_ integer;");
+        if (p.returnType != null) {
+            sb.append("result$ ").append(p.returnType.plsqlName()).append(";\n");
+        }
         for (int i = 0; i < p.arguments.size(); i++) {
-            sb.append("p" + i + "$").append(" ").append(p.arguments.get(i).type.plsqlName());
+            sb.append("p" + i + "$ ").append(p.arguments.get(i).type.plsqlName());
             sb.append(";\n");
         }
         sb.append("begin\n");
@@ -510,7 +528,11 @@ public class Call {
         }
         sb.append("dbms_output.put_line('c '||to_char(sysdate,'mi:ss'));\n");
         sb.append("an:= number_array();av:=varchar2_array();ad:=date_array();\n");
-        sb.append(p.package_ + "." + p.name + "(");
+        if (p.returnType != null) {
+            sb.append("result$:=");
+        }
+        sb.append(p.original_name + "(");
+        //sb.append(p.package_ + "." + p.name + "(");
         for (int i = 0; i < p.arguments.size(); i++) {
             if (i > 0) {
                 sb.append(", ");
@@ -519,6 +541,9 @@ public class Call {
         }
         sb.append(");\n");
         sb.append("dbms_output.put_line('d '||to_char(sysdate,'mi:ss'));\n");
+        if (p.returnType!= null) {
+            genWriteThing(sb,p.returnType,"result$");
+        }
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
             if (a.direction.equals("IN")) {
@@ -578,6 +603,10 @@ public class Call {
         }
         cstm.close();
         HashMap<String, Object> res = new HashMap<>();
+        if (p.returnType != null) {
+            Object o = readThing(ra,p.returnType);
+            res.put("RETURN", o);
+        }
         for (Argument arg : p.arguments) {
             if (arg.direction.equals("IN")) {
                 continue;
@@ -588,25 +617,50 @@ public class Call {
         return res;
     }
 
+    static String sql1 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,\n"
+            + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,\n"
+            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
+            + " from all_arguments \n"
+            + " where owner = ? and package_name = ? and object_name = ?\n"
+            + " order by owner,package_name,object_name,sequence";
+
+    static String sql2 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,"
+            + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,"
+            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
+            + " from all_arguments \n"
+            + " where object_id = ? \n"
+            + " order by owner,package_name,object_name,sequence";
+
     public static Map<String, Object> CallProcedure(OracleConnection oc,
-            String owner, String pack, String name, Map<String, Object> args) throws SQLException {
+            String name, Map<String, Object> args) throws SQLException {
+        ResolvedName rn = resolveName(oc, name);
+        if (rn.dblink != null) {
+            throw new RuntimeException("no call over dblink");
+        }
         ArrayList<ArgumentsRow> r = new ArrayList<>();
-        PreparedStatement pstm = oc.prepareStatement(
-                "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,"
-                + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,"
-                + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
-                + " from all_arguments \n"
-                + " where owner = ? and package_name = ? and object_name = ?\n"
-                + " order by owner,package_name,object_name,sequence");
-        pstm.setString(1, owner);
-        pstm.setString(2, pack);
-        pstm.setString(3, name);
-        ResultSet rs = pstm.executeQuery();
-        r = fetchArgumentsRows(rs);
-        rs.close();
+        PreparedStatement pstm;
+        if (rn.part1_type == 7 || rn.part1_type == 8) {
+            pstm = oc.prepareCall(sql2);
+            pstm.setBigDecimal(1, new BigDecimal(rn.object_number));
+        } else if (rn.part1_type == 9) {
+            if (rn.part2 == null) {
+                throw new RuntimeException("only package given: " + name);
+            }
+            pstm = oc.prepareCall(sql1);
+            pstm.setString(1, rn.schema);
+            pstm.setString(2, rn.part1); // fixme part1 is null
+            pstm.setString(3, rn.part2);
+        } else {
+            throw new RuntimeException("not aprocedure, not in a package: " + name);
+        }
+        try (ResultSet rs = pstm.executeQuery()) {
+            r = fetchArgumentsRows(rs);
+            rs.close();
+        }
         pstm.close();
         Args args2 = new Args(r);
         Procedure p = eatProc(args2);
+        p.original_name = name;
         return CallProcedure(oc, p, args);
     }
     /*
