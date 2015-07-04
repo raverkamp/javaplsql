@@ -17,20 +17,98 @@ import oracle.jdbc.OracleConnection;
 import oracle.jdbc.OracleTypes;
 import oracle.sql.ARRAY;
 
-public class Call {
+public final class ProcedureCaller {
+    
+    final OracleConnection connection;
+    
+    public ProcedureCaller(OracleConnection connection) {
+        this.connection = connection;
+    }
+    
+    
+        /*
+     DBMS_UTILITY.NAME_RESOLVE (
+     name          IN  VARCHAR2, 
+     context       IN  NUMBER,
+     schema        OUT VARCHAR2, 
+     part1         OUT VARCHAR2, 
+     part2         OUT VARCHAR2,
+     dblink        OUT VARCHAR2, 
+     part1_type    OUT NUMBER, 
+     object_number OUT NUMBER);
+    
+     5 - synonym
+     7 - procedure (top level)
+     8 - function (top level)
+     9 - package
+     */
 
-    public static abstract class Type {
+    public static class ResolvedName {
+
+        public final String schema;
+        public final String part1;
+        public final String part2;
+        public final String dblink;
+        public final int part1_type;
+        public final BigInteger object_number;
+
+        @Override
+        public String toString() {
+            return "" + schema + ", " + part1 + ", " + part2 + ", " + dblink + ", " + part1_type + ", " + object_number;
+        }
+
+        public ResolvedName(String schema,
+                String part1,
+                String part2,
+                String dblink,
+                int part1_type,
+                BigInteger object_number) {
+            this.schema = schema;
+            this.part1 = part1;
+            this.part2 = part2;
+            this.dblink = dblink;
+            this.part1_type = part1_type;
+            this.object_number = object_number;
+        }
+    }
+
+    public static ResolvedName resolveName(OracleConnection con, String name) throws SQLException {
+        try (CallableStatement cstm = con.prepareCall(
+                "begin dbms_utility.name_resolve(?,?,?,?,?,?,?,?);end;")) {
+            cstm.setString(1, name);
+            cstm.setInt(2, 1); // is context PL/SQL code 
+            cstm.registerOutParameter(3, Types.VARCHAR);
+            cstm.registerOutParameter(4, Types.VARCHAR);
+            cstm.registerOutParameter(5, Types.VARCHAR);
+            cstm.registerOutParameter(6, Types.VARCHAR);
+            cstm.registerOutParameter(7, Types.INTEGER);
+            cstm.registerOutParameter(8, Types.NUMERIC);
+            cstm.execute();
+            String schema = cstm.getString(3);
+            String part1 = cstm.getString(4);
+            String part2 = cstm.getString(5);
+            String dblink = cstm.getString(6);
+            int part1_type = cstm.getInt(7);
+            if (cstm.wasNull()) {
+                part1_type = 0;
+            }
+            BigDecimal object_number = cstm.getBigDecimal(8);
+            return new ResolvedName(schema, part1, part2, dblink, part1_type, object_number.toBigIntegerExact());
+        }
+    }
+
+    static abstract class Type {
 
         public abstract String plsqlName();
     }
 
-    public static class Field {
+    static class Field {
 
         String name;
         Type type;
     }
 
-    public static class RecordType extends Type {
+    static class RecordType extends Type {
 
         String owner;
         String package_;
@@ -43,7 +121,7 @@ public class Call {
         }
     }
 
-    public static class NamedType extends Type {
+    static class NamedType extends Type {
 
         String name; // varchar2, number, integer ...
 
@@ -57,7 +135,7 @@ public class Call {
         }
     }
 
-    public static class TableType extends Type {
+    static class TableType extends Type {
 
         String owner;
         String package_;
@@ -70,17 +148,17 @@ public class Call {
         }
     }
 
-    public static class Argument {
+    static class Argument {
 
         public String name;
         public String direction;
         public Type type;
     }
 
-    public static class SysRefCursor {
+    static class SysRefCursor {
     }
 
-    public static class Procedure {
+    static class Procedure {
 
         Type returnType;
         String original_name;
@@ -92,7 +170,7 @@ public class Call {
     }
 
     // this class corresponds 1:1 the columns in all_arguments
-    public static class ArgumentsRow {
+    static class ArgumentsRow {
 
         String owner;
         String object_name;
@@ -110,7 +188,7 @@ public class Call {
         String pls_type;
     }
 
-    public static ArrayList<ArgumentsRow> fetchArgumentsRows(ResultSet rs) throws SQLException {
+    static ArrayList<ArgumentsRow> fetchArgumentsRows(ResultSet rs) throws SQLException {
         ArrayList<ArgumentsRow> res = new ArrayList<>();
         while (rs.next()) {
             ArgumentsRow r = new ArgumentsRow();
@@ -136,7 +214,7 @@ public class Call {
         return res;
     }
 
-    public static class Args {
+    static class Args {
 
         int pos;
         final ArrayList<ArgumentsRow> args;
@@ -159,7 +237,7 @@ public class Call {
         }
     }
 
-    public static Field eatArg(Args a) {
+    static Field eatArg(Args a) {
         ArgumentsRow r = a.getRow();
         Field f = new Field();
         f.name = r.argument_name;
@@ -200,7 +278,7 @@ public class Call {
         throw new RuntimeException("unsupported type: " + r.data_type);
     }
 
-    public static Procedure eatProc(Args a) {
+    static Procedure eatProc(Args a) {
         Procedure p = new Procedure();
         p.package_ = a.getRow().package_name;
         p.name = a.getRow().object_name;
@@ -451,7 +529,7 @@ public class Call {
         }
     }
 
-    public static void genWriteThing(StringBuilder sb, Type t, String source) {
+    static void genWriteThing(StringBuilder sb, Type t, String source) {
         if (t instanceof NamedType) {
             genWriteNamedType(sb, (NamedType) t, source);
         } else if (t instanceof RecordType) {
@@ -541,8 +619,8 @@ public class Call {
         }
         sb.append(");\n");
         sb.append("dbms_output.put_line('d '||to_char(sysdate,'mi:ss'));\n");
-        if (p.returnType!= null) {
-            genWriteThing(sb,p.returnType,"result$");
+        if (p.returnType != null) {
+            genWriteThing(sb, p.returnType, "result$");
         }
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
@@ -560,10 +638,10 @@ public class Call {
         return sb.toString();
     }
 
-    public static Map<String, Object> CallProcedure(OracleConnection oc,
+    Map<String, Object> call(
             Procedure p, Map<String, Object> args) throws SQLException {
         String s = createStatementString(p);
-        OracleCallableStatement cstm = (OracleCallableStatement) oc.prepareCall(s);
+        OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(s);
         ArgArrays aa = new ArgArrays();
         for (Argument arg : p.arguments) {
             if (arg.direction.equals("OUT")) {
@@ -573,9 +651,9 @@ public class Call {
             fillThing(aa, arg.type, o);
         }
         {
-            oracle.sql.ARRAY na = (oracle.sql.ARRAY) oc.createARRAY("NUMBER_ARRAY", aa.decimal.toArray(new BigDecimal[0]));
-            oracle.sql.ARRAY va = (oracle.sql.ARRAY) oc.createARRAY("VARCHAR2_ARRAY", aa.varchar2.toArray(new String[0]));
-            oracle.sql.ARRAY da = (oracle.sql.ARRAY) oc.createARRAY("DATE_ARRAY", aa.date.toArray(new Timestamp[0]));
+            oracle.sql.ARRAY na = (oracle.sql.ARRAY) this.connection.createARRAY("NUMBER_ARRAY", aa.decimal.toArray(new BigDecimal[0]));
+            oracle.sql.ARRAY va = (oracle.sql.ARRAY) this.connection.createARRAY("VARCHAR2_ARRAY", aa.varchar2.toArray(new String[0]));
+            oracle.sql.ARRAY da = (oracle.sql.ARRAY) this.connection.createARRAY("DATE_ARRAY", aa.date.toArray(new Timestamp[0]));
 
             cstm.setArray(1, na);
             cstm.setArray(2, va);
@@ -604,7 +682,7 @@ public class Call {
         cstm.close();
         HashMap<String, Object> res = new HashMap<>();
         if (p.returnType != null) {
-            Object o = readThing(ra,p.returnType);
+            Object o = readThing(ra, p.returnType);
             res.put("RETURN", o);
         }
         for (Argument arg : p.arguments) {
@@ -631,22 +709,22 @@ public class Call {
             + " where object_id = ? \n"
             + " order by owner,package_name,object_name,sequence";
 
-    public static Map<String, Object> CallProcedure(OracleConnection oc,
+    public Map<String, Object> call(
             String name, Map<String, Object> args) throws SQLException {
-        ResolvedName rn = resolveName(oc, name);
+        ResolvedName rn = resolveName(this.connection, name);
         if (rn.dblink != null) {
             throw new RuntimeException("no call over dblink");
         }
         ArrayList<ArgumentsRow> r = new ArrayList<>();
         PreparedStatement pstm;
         if (rn.part1_type == 7 || rn.part1_type == 8) {
-            pstm = oc.prepareCall(sql2);
+            pstm = this.connection.prepareCall(sql2);
             pstm.setBigDecimal(1, new BigDecimal(rn.object_number));
         } else if (rn.part1_type == 9) {
             if (rn.part2 == null) {
                 throw new RuntimeException("only package given: " + name);
             }
-            pstm = oc.prepareCall(sql1);
+            pstm = this.connection.prepareCall(sql1);
             pstm.setString(1, rn.schema);
             pstm.setString(2, rn.part1); // fixme part1 is null
             pstm.setString(3, rn.part2);
@@ -661,76 +739,7 @@ public class Call {
         Args args2 = new Args(r);
         Procedure p = eatProc(args2);
         p.original_name = name;
-        return CallProcedure(oc, p, args);
-    }
-    /*
-     DBMS_UTILITY.NAME_RESOLVE (
-     name          IN  VARCHAR2, 
-     context       IN  NUMBER,
-     schema        OUT VARCHAR2, 
-     part1         OUT VARCHAR2, 
-     part2         OUT VARCHAR2,
-     dblink        OUT VARCHAR2, 
-     part1_type    OUT NUMBER, 
-     object_number OUT NUMBER);
-    
-     5 - synonym
-     7 - procedure (top level)
-     8 - function (top level)
-     9 - package
-     */
-
-    public static class ResolvedName {
-
-        public final String schema;
-        public final String part1;
-        public final String part2;
-        public final String dblink;
-        public final int part1_type;
-        public final BigInteger object_number;
-
-        @Override
-        public String toString() {
-            return "" + schema + ", " + part1 + ", " + part2 + ", " + dblink + ", " + part1_type + ", " + object_number;
-        }
-
-        public ResolvedName(String schema,
-                String part1,
-                String part2,
-                String dblink,
-                int part1_type,
-                BigInteger object_number) {
-            this.schema = schema;
-            this.part1 = part1;
-            this.part2 = part2;
-            this.dblink = dblink;
-            this.part1_type = part1_type;
-            this.object_number = object_number;
-        }
+        return call( p, args);
     }
 
-    public static ResolvedName resolveName(OracleConnection con, String name) throws SQLException {
-        try (CallableStatement cstm = con.prepareCall(
-                "begin dbms_utility.name_resolve(?,?,?,?,?,?,?,?);end;")) {
-            cstm.setString(1, name);
-            cstm.setInt(2, 1); // is context PL/SQL code 
-            cstm.registerOutParameter(3, Types.VARCHAR);
-            cstm.registerOutParameter(4, Types.VARCHAR);
-            cstm.registerOutParameter(5, Types.VARCHAR);
-            cstm.registerOutParameter(6, Types.VARCHAR);
-            cstm.registerOutParameter(7, Types.INTEGER);
-            cstm.registerOutParameter(8, Types.NUMERIC);
-            cstm.execute();
-            String schema = cstm.getString(3);
-            String part1 = cstm.getString(4);
-            String part2 = cstm.getString(5);
-            String dblink = cstm.getString(6);
-            int part1_type = cstm.getInt(7);
-            if (cstm.wasNull()) {
-                part1_type = 0;
-            }
-            BigDecimal object_number = cstm.getBigDecimal(8);
-            return new ResolvedName(schema, part1, part2, dblink, part1_type, object_number.toBigIntegerExact());
-        }
-    }
 }

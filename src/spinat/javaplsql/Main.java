@@ -35,11 +35,11 @@ public class Main {
         Ddl.call(con, a.get("p1_spec"));
         Ddl.call(con, a.get("p1_body"));
         Ddl.call(con, a.get("proc1"));
-        System.out.println(Call.resolveName(con, "p1"));
-        System.out.println(Call.resolveName(con, "bdms.p1"));
-        System.out.println(Call.resolveName(con, "bdms.p1.p"));
-        System.out.println(Call.resolveName(con, "dbms_utility.name_resolve"));
-        System.out.println(Call.resolveName(con, "sys.dbms_utility.name_resolve"));
+        System.out.println(ProcedureCaller.resolveName(con, "p1"));
+        System.out.println(ProcedureCaller.resolveName(con, "bdms.p1"));
+        System.out.println(ProcedureCaller.resolveName(con, "bdms.p1.p"));
+        System.out.println(ProcedureCaller.resolveName(con, "dbms_utility.name_resolve"));
+        System.out.println(ProcedureCaller.resolveName(con, "sys.dbms_utility.name_resolve"));
         //System.out.println(Call.resolveName(con, "bdms.dbms_utility.name_resolve"));
 
         test1(con);
@@ -65,7 +65,7 @@ public class Main {
         ar.put("XI", 12);
         ar.put("YI", "x");
         ar.put("ZI", new Date());
-        Map<String, Object> res = Call.CallProcedure(con, "P1.P", ar);
+        Map<String, Object> res = new ProcedureCaller(con).call("P1.P", ar);
         System.out.println(res);
         if (!(res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"))) {
             throw new RuntimeException("fail");
@@ -79,7 +79,7 @@ public class Main {
         a.put("Y", "x");
         a.put("Z", new Date());
         ar.put("A", a);
-        Map<String, Object> res = Call.CallProcedure(con, "P1.P2", ar);
+        Map<String, Object> res = new ProcedureCaller(con).call("P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
         if (!(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"))) {
@@ -98,7 +98,7 @@ public class Main {
             l.add(a);
         }
         ar.put("A", l);
-        Map<String, Object> res = Call.CallProcedure(con, "P1.P3", ar);
+        Map<String, Object> res = new ProcedureCaller(con).call("P1.P3", ar);
         ArrayList<Map<String, Object>> l2 = (ArrayList<Map<String, Object>>) res.get("B");
         for (int i = 0; i < l.size(); i++) {
             Map<String, Object> m = l.get(i);
@@ -125,7 +125,7 @@ public class Main {
             l0.add(l);
         }
         ar.put("A", l0);
-        Map<String, Object> res = Call.CallProcedure(con, "P1.P4", ar);
+        Map<String, Object> res = new ProcedureCaller(con).call("P1.P4", ar);
         System.out.println(res);
         ArrayList l2 = (ArrayList) res.get("A");
         for (int i = 0; i < l2.size(); i++) {
@@ -150,7 +150,7 @@ public class Main {
         a.put("Y", null);
         a.put("Z", null);
         ar.put("A", a);
-        Map<String, Object> res = Call.CallProcedure(con, "P1.P2", ar);
+        Map<String, Object> res = new ProcedureCaller(con).call("P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
         if (!(m.get("X") == null && m.get("Y") == null)) {
@@ -165,7 +165,7 @@ public class Main {
             l0.add(null);
         }
         ar.put("A", l0);
-        Map<String, Object> res = Call.CallProcedure(con, "P1.P4", ar);
+        Map<String, Object> res = new ProcedureCaller(con).call("P1.P4", ar);
         System.out.println(res);
         ArrayList l2 = (ArrayList) res.get("A");
         for (int i = 0; i < l2.size(); i++) {
@@ -240,7 +240,7 @@ public class Main {
         for (int i = 0; i < args_size; i++) {
             args.put("IN" + i, m);
         }
-        Map<String, Object> res = Call.CallProcedure(con, "P2.P", args);
+        Map<String, Object> res = new ProcedureCaller(con).call("P2.P", args);
         System.out.println(res);
     }
 
@@ -257,7 +257,7 @@ public class Main {
         }
         Map<String, Object> args = new HashMap<>();
         args.put("A", a);
-        Map<String, Object> res = Call.CallProcedure(con, "P1.P5", args);
+        Map<String, Object> res = new ProcedureCaller(con).call("P1.P5", args);
         ArrayList<String> b = (ArrayList<String>) res.get("B");
         for (int i = 0; i < Math.max(a.size(), b.size()); i++) {
             if (!(a.get(i).equals(b.get(i)))) {
@@ -271,12 +271,12 @@ public class Main {
         a.put("X", 23);
         a.put("Y", "roland");
         a.put("Z", new java.util.Date());
-        Map<String, Object> m = Call.CallProcedure(con, "proc1", a);
+        Map<String, Object> m = new ProcedureCaller(con).call("proc1", a);
     }
 
     static void test8(OracleConnection con) throws SQLException {
         Map<String, Object> a = new HashMap<>();
-        Map<String, Object> m = Call.CallProcedure(con, "p1.p6", a);
+        Map<String, Object> m = new ProcedureCaller(con).call("p1.p6", a);
     }
 
     static void test9(OracleConnection con) throws SQLException {
@@ -285,7 +285,7 @@ public class Main {
         a.put("B", "rote gruetze");
         java.sql.Timestamp dat = new java.sql.Timestamp(2014, 12, 3, 23, 45, 1, 0);
         a.put("C", dat);
-        Map<String, Object> m = Call.CallProcedure(con, "p1.f7", a);
+        Map<String, Object> m = new ProcedureCaller(con).call("p1.f7", a);
         Map<String, Object> r = (Map<String, Object>) m.get("RETURN");
         if (!(r.get("X").equals(BigDecimal.valueOf(-123))
                 && r.get("Y").equals("rote gruetze")
