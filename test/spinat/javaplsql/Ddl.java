@@ -1,5 +1,6 @@
 package spinat.javaplsql;
 
+import spinat.javaplsql.*;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.StringTokenizer;
