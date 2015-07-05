@@ -1,3 +1,20 @@
+/*
+
+Copyright (c) 2015, Roland Averkamp, roland.averkamp.0@gmail.com
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+*/
 package spinat.javaplsql;
 
 import java.math.BigDecimal;
@@ -18,15 +35,14 @@ import oracle.jdbc.OracleTypes;
 import oracle.sql.ARRAY;
 
 public final class ProcedureCaller {
-    
+
     final OracleConnection connection;
-    
+
     public ProcedureCaller(OracleConnection connection) {
         this.connection = connection;
     }
-    
-    
-        /*
+
+    /*
      DBMS_UTILITY.NAME_RESOLVE (
      name          IN  VARCHAR2, 
      context       IN  NUMBER,
@@ -42,7 +58,6 @@ public final class ProcedureCaller {
      8 - function (top level)
      9 - package
      */
-
     public static class ResolvedName {
 
         public final String schema;
@@ -169,7 +184,7 @@ public final class ProcedureCaller {
         ArrayList<Argument> arguments;
     }
 
-    // this class corresponds 1:1 the columns in all_arguments
+    // this class corresponds 1:1 the columns in all_arguments, some columns are lft out
     static class ArgumentsRow {
 
         String owner;
@@ -641,32 +656,31 @@ public final class ProcedureCaller {
     Map<String, Object> call(
             Procedure p, Map<String, Object> args) throws SQLException {
         String s = createStatementString(p);
-        OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(s);
-        ArgArrays aa = new ArgArrays();
-        for (Argument arg : p.arguments) {
-            if (arg.direction.equals("OUT")) {
-                continue;
+        final ARRAY no;
+        final ARRAY vo;
+        final ARRAY do_;
+        try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(s)) {
+            ArgArrays aa = new ArgArrays();
+            for (Argument arg : p.arguments) {
+                if (arg.direction.equals("OUT")) {
+                    continue;
+                }
+                Object o = args.get(arg.name);
+                fillThing(aa, arg.type, o);
             }
-            Object o = args.get(arg.name);
-            fillThing(aa, arg.type, o);
-        }
-        {
-            oracle.sql.ARRAY na = (oracle.sql.ARRAY) this.connection.createARRAY("NUMBER_ARRAY", aa.decimal.toArray(new BigDecimal[0]));
-            oracle.sql.ARRAY va = (oracle.sql.ARRAY) this.connection.createARRAY("VARCHAR2_ARRAY", aa.varchar2.toArray(new String[0]));
-            oracle.sql.ARRAY da = (oracle.sql.ARRAY) this.connection.createARRAY("DATE_ARRAY", aa.date.toArray(new Timestamp[0]));
 
-            cstm.setArray(1, na);
-            cstm.setArray(2, va);
-            cstm.setArray(3, da);
-        }
-        cstm.registerOutParameter(4, OracleTypes.ARRAY, "NUMBER_ARRAY");
-        cstm.registerOutParameter(5, OracleTypes.ARRAY, "VARCHAR2_ARRAY");
-        cstm.registerOutParameter(6, OracleTypes.ARRAY, "DATE_ARRAY");
+            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY("NUMBER_ARRAY", aa.decimal.toArray(new BigDecimal[0])));
+            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY("VARCHAR2_ARRAY", aa.varchar2.toArray(new String[0])));
+            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY("DATE_ARRAY", aa.date.toArray(new Timestamp[0])));
 
-        cstm.execute();
-        ARRAY no = cstm.getARRAY(4);
-        ARRAY vo = cstm.getARRAY(5);
-        ARRAY do_ = cstm.getARRAY(6);
+            cstm.registerOutParameter(4, OracleTypes.ARRAY, "NUMBER_ARRAY");
+            cstm.registerOutParameter(5, OracleTypes.ARRAY, "VARCHAR2_ARRAY");
+            cstm.registerOutParameter(6, OracleTypes.ARRAY, "DATE_ARRAY");
+            cstm.execute();
+            no = cstm.getARRAY(4);
+            vo = cstm.getARRAY(5);
+            do_ = cstm.getARRAY(6);
+        }
         ResArrays ra = new ResArrays();
 
         for (Object o : (Object[]) no.getArray()) {
@@ -679,7 +693,6 @@ public final class ProcedureCaller {
         for (Object o : (Object[]) do_.getArray()) {
             ra.date.add((Timestamp) o);
         }
-        cstm.close();
         HashMap<String, Object> res = new HashMap<>();
         if (p.returnType != null) {
             Object o = readThing(ra, p.returnType);
@@ -715,31 +728,38 @@ public final class ProcedureCaller {
         if (rn.dblink != null) {
             throw new RuntimeException("no call over dblink");
         }
-        ArrayList<ArgumentsRow> r = new ArrayList<>();
+        ArrayList<ArgumentsRow> argument_rows = new ArrayList<>();
         PreparedStatement pstm;
+
         if (rn.part1_type == 7 || rn.part1_type == 8) {
+            // this a global procedure or function
             pstm = this.connection.prepareCall(sql2);
             pstm.setBigDecimal(1, new BigDecimal(rn.object_number));
         } else if (rn.part1_type == 9) {
             if (rn.part2 == null) {
                 throw new RuntimeException("only package given: " + name);
             }
+            // this is procedure or function in a package
             pstm = this.connection.prepareCall(sql1);
             pstm.setString(1, rn.schema);
-            pstm.setString(2, rn.part1); // fixme part1 is null
+            pstm.setString(2, rn.part1);
             pstm.setString(3, rn.part2);
         } else {
-            throw new RuntimeException("not aprocedure, not in a package: " + name);
+            throw new RuntimeException("this is not a gobal procedure/function, "
+                    + "nor a procedure/function in a package: " + name);
         }
         try (ResultSet rs = pstm.executeQuery()) {
-            r = fetchArgumentsRows(rs);
+            argument_rows = fetchArgumentsRows(rs);
             rs.close();
         }
         pstm.close();
-        Args args2 = new Args(r);
+        if (argument_rows.isEmpty()) {
+            throw new RuntimeException("object is not valid: " + name);
+        }
+        Args args2 = new Args(argument_rows);
         Procedure p = eatProc(args2);
         p.original_name = name;
-        return call( p, args);
+        return call(p, args);
     }
 
 }
