@@ -1,20 +1,20 @@
 /*
 
-Copyright (c) 2015, Roland Averkamp, roland.averkamp.0@gmail.com
+ Copyright (c) 2015, Roland Averkamp, roland.averkamp.0@gmail.com
 
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+ Permission to use, copy, modify, and/or distribute this software for any
+ purpose with or without fee is hereby granted, provided that the above
+ copyright notice and this permission notice appear in all copies.
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-*/
+ */
 package spinat.javaplsql;
 
 import java.math.BigDecimal;
@@ -112,13 +112,28 @@ public final class ProcedureCaller {
         }
     }
 
+    // represents types from PL/SQL
     static abstract class Type {
 
         public abstract String plsqlName();
     }
 
-    static class Field {
+    // the PL/SQL standrad types, identfied by their name DATE, VARCHAR2
+    static class NamedType extends Type {
 
+        String name; // varchar2, number, integer ...
+
+        @Override
+        public String plsqlName() {
+            if (this.name.equals("VARCHAR2")) {
+                return "varchar2(32767)";
+            } else {
+                return this.name;
+            }
+        }
+    }
+
+    static class Field {
         String name;
         Type type;
     }
@@ -136,20 +151,8 @@ public final class ProcedureCaller {
         }
     }
 
-    static class NamedType extends Type {
-
-        String name; // varchar2, number, integer ...
-
-        @Override
-        public String plsqlName() {
-            if (this.name.equals("VARCHAR2")) {
-                return "varchar2(32767)";
-            } else {
-                return this.name;
-            }
-        }
-    }
-
+    // type bla is table of blub;
+    // no indexed by
     static class TableType extends Type {
 
         String owner;
@@ -163,6 +166,7 @@ public final class ProcedureCaller {
         }
     }
 
+    // the arguments to a procedure/function
     static class Argument {
 
         public String name;
@@ -170,11 +174,10 @@ public final class ProcedureCaller {
         public Type type;
     }
 
-    static class SysRefCursor {
-    }
-
+    // represents one procedure/function
     static class Procedure {
 
+        // not null if function
         Type returnType;
         String original_name;
         String owner;
@@ -185,6 +188,8 @@ public final class ProcedureCaller {
     }
 
     // this class corresponds 1:1 the columns in all_arguments, some columns are lft out
+    // when working with the data in all_arguments it is transformed into an ArrayList
+    // of this ArgumentsRow
     static class ArgumentsRow {
 
         String owner;
@@ -229,6 +234,9 @@ public final class ProcedureCaller {
         return res;
     }
 
+    
+    // the combination of ArrayList<ArgumentsRow> and a position into this
+    // it. Some kind of stream
     static class Args {
 
         int pos;
@@ -252,6 +260,9 @@ public final class ProcedureCaller {
         }
     }
 
+    // get a Field from Args a and advance the internal position to the position
+    // after this Field.
+    // due to the recursive structure of PL/SQL types this method is recursive
     static Field eatArg(Args a) {
         ArgumentsRow r = a.getRow();
         Field f = new Field();
