@@ -91,3 +91,5 @@ try to separate conversion exeptions (our fault) from exceptions in the procedur
   wrap the actual procedure call with an eception handler
 tests for behaviour with different users/schemas ans synonyms etc.
 handling of date-like typs, Timestamp, java.sql.Date. java.util.Date
+type checks in java, if string is too long for record field, the exception
+should be thrown in Java.

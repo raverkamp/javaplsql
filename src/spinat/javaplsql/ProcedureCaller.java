@@ -127,6 +127,14 @@ public final class ProcedureCaller {
         // data in the arrays based on the type
         public abstract Object readFromResArrays(ResArrays a);
 
+        // generate the PL/SQL code to read the data for the arguments from the 
+        // three PL/SQL arrays
+        public abstract void genReadOutThing(StringBuilder sb, String target);
+         
+        // generate the PL/SQL code to write the data from the OUT and IN/OUT 
+        // and the return value to the three arrays
+        public abstract void genWriteThing(StringBuilder sb, String source);
+
     }
 
     // the PL/SQL standrad types, identfied by their name DATE, VARCHAR2
@@ -165,6 +173,32 @@ public final class ProcedureCaller {
                 return a.readDate();
             } else {
                 throw new RuntimeException("unsupported named type: " + this.name);
+            }
+        }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, String source) {
+            if (this.name.equals("VARCHAR2")) {
+                sb.append("av.extend; av(av.last) := " + source + ";\n");
+            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+                sb.append("an.extend; an(an.last):= " + source + ";\n");
+            } else if (this.name.equals("DATE")) {
+                sb.append("ad.extend; ad(ad.last):= " + source + ";\n");
+            } else {
+                throw new RuntimeException("unsupported base type");
+            }
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, String target) {
+            if (this.name.equals("VARCHAR2")) {
+                sb.append(target).append(":= av(inv); inv := inv+1;\n");
+            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+                sb.append(target).append(":= an(inn);inn:=inn+1;\n");
+            } else if (this.name.equals("DATE")) {
+                sb.append(target).append(":= ad(ind); ind := ind+1;\n");
+            } else {
+                throw new RuntimeException("unsupported base type");
             }
         }
     }
@@ -217,6 +251,22 @@ public final class ProcedureCaller {
             }
             return m;
         }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, String source) {
+            for (Field f : this.fields) {
+                String a = source + "." + f.name;
+                f.type.genWriteThing(sb, a);
+            }
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, String target) {
+            for (Field f : this.fields) {
+                String a = target + "." + f.name;
+                f.type.genReadOutThing(sb, a);
+            }
+        }
     }
 
     // type bla is table of blub;
@@ -258,6 +308,42 @@ public final class ProcedureCaller {
                 }
                 return res;
             }
+        }
+
+        // used for the index variables
+        static int counter = 0;
+
+        @Override
+        public void genWriteThing(StringBuilder sb, String source) {
+            sb.append("an.extend;\n");
+            sb.append(" if " + source + " is null then\n");
+            sb.append("    an(an.last) := null;\n");
+            sb.append("else \n");
+            sb.append("  an(an.last) := nvl(" + source + ".last, 0);\n");
+            String index = "i" + counter;
+            counter++;
+            sb.append("for " + index + " in 1 .. nvl(" + source + ".last,0) loop\n");
+            this.slottype.genWriteThing(sb, source + "(" + index + ")");
+            sb.append("end loop;\n");
+            sb.append("end if;\n");
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, String target) {
+            sb.append("size_ := an(inn); inn:= inn+1;\n");
+            sb.append("if size_ is null then\n");
+            sb.append("  ").append(target).append(":=null;\n");
+            sb.append("else\n");
+            sb.append(" ").append(target).append(" := new ")
+                    .append(this.package_).append(".").append(this.name).append("();\n");
+            String index = "i" + counter;
+            counter++;
+            String newTarget = target + "(" + index + ")";
+            sb.append("  for ").append(index).append(" in 1 .. size_ loop\n");
+            sb.append("" + target + ".extend();\n");
+            this.slottype.genReadOutThing(sb, newTarget);
+            sb.append("end loop;\n");
+            sb.append("end if;\n");
         }
     }
 
@@ -497,100 +583,6 @@ public final class ProcedureCaller {
         }
     }
 
-    static void readOutThing(StringBuilder sb, Type t, String target) {
-        if (t instanceof NamedType) {
-            readOutNamedType(sb, (NamedType) t, target);
-        } else if (t instanceof RecordType) {
-            readOutRecord(sb, (RecordType) t, target);
-        } else if (t instanceof TableType) {
-            readOutTable(sb, (TableType) t, target);
-        }
-    }
-
-    // used for the index variables
-    static int counter = 0;
-
-    static void readOutTable(StringBuilder sb, TableType t, String target) {
-        sb.append("size_ := an(inn); inn:= inn+1;\n");
-        sb.append("if size_ is null then\n");
-        sb.append("  ").append(target).append(":=null;\n");
-        sb.append("else\n");
-        sb.append(" ").append(target).append(" := new ")
-                .append(t.package_).append(".").append(t.name).append("();\n");
-        String index = "i" + counter;
-        counter++;
-        String newTarget = target + "(" + index + ")";
-        sb.append("  for ").append(index).append(" in 1 .. size_ loop\n");
-        sb.append("" + target + ".extend();\n");
-        readOutThing(sb, t.slottype, newTarget);
-        sb.append("end loop;\n");
-        sb.append("end if;\n");
-    }
-
-    static void readOutNamedType(StringBuilder sb, NamedType t, String target) {
-        if (t.name.equals("VARCHAR2")) {
-            sb.append(target).append(":= av(inv); inv := inv+1;\n");
-        } else if (t.name.equals("NUMBER") || t.name.equals("INTEGER")) {
-            sb.append(target).append(":= an(inn);inn:=inn+1;\n");
-        } else if (t.name.equals("DATE")) {
-            sb.append(target).append(":= ad(ind); ind := ind+1;\n");
-        } else {
-            throw new RuntimeException("unsupported base type");
-        }
-    }
-
-    static void readOutRecord(StringBuilder sb, RecordType t, String target) {
-        for (Field f : t.fields) {
-            String a = target + "." + f.name;
-            readOutThing(sb, f.type, a);
-        }
-    }
-
-    static void genWriteThing(StringBuilder sb, Type t, String source) {
-        if (t instanceof NamedType) {
-            genWriteNamedType(sb, (NamedType) t, source);
-        } else if (t instanceof RecordType) {
-            genWriteRecord(sb, (RecordType) t, source);
-        } else if (t instanceof TableType) {
-            genWriteTable(sb, (TableType) t, source);
-        } else {
-            throw new RuntimeException("unsupported type");
-        }
-    }
-
-    static void genWriteRecord(StringBuilder sb, RecordType t, String source) {
-        for (Field f : t.fields) {
-            String a = source + "." + f.name;
-            genWriteThing(sb, f.type, a);
-        }
-    }
-
-    static void genWriteTable(StringBuilder sb, TableType t, String source) {
-        sb.append("an.extend;\n");
-        sb.append(" if " + source + " is null then\n");
-        sb.append("    an(an.last) := null;\n");
-        sb.append("else \n");
-        sb.append("  an(an.last) := nvl(" + source + ".last, 0);\n");
-        String index = "i" + counter;
-        counter++;
-        sb.append("for " + index + " in 1 .. nvl(" + source + ".last,0) loop\n");
-        genWriteThing(sb, t.slottype, source + "(" + index + ")");
-        sb.append("end loop;\n");
-        sb.append("end if;\n");
-    }
-
-    static void genWriteNamedType(StringBuilder sb, NamedType t, String source) {
-        if (t.name.equals("VARCHAR2")) {
-            sb.append("av.extend; av(av.last) := " + source + ";\n");
-        } else if (t.name.equals("NUMBER") || t.name.equals("INTEGER")) {
-            sb.append("an.extend; an(an.last):= " + source + ";\n");
-        } else if (t.name.equals("DATE")) {
-            sb.append("ad.extend; ad(ad.last):= " + source + ";\n");
-        } else {
-            throw new RuntimeException("unsupported base type");
-        }
-    }
-
     static String createStatementString(Procedure p) {
         StringBuilder sb = new StringBuilder();
         sb.append("declare\n");
@@ -619,7 +611,7 @@ public final class ProcedureCaller {
             if (a.direction.equals("OUT")) {
                 continue;
             }
-            readOutThing(sb, a.type, "p" + i + "$");
+            a.type.genReadOutThing(sb, "p" + i + "$");
         }
         sb.append("dbms_output.put_line('c '||to_char(sysdate,'mi:ss'));\n");
         sb.append("an:= number_array();av:=varchar2_array();ad:=date_array();\n");
@@ -637,14 +629,14 @@ public final class ProcedureCaller {
         sb.append(");\n");
         sb.append("dbms_output.put_line('d '||to_char(sysdate,'mi:ss'));\n");
         if (p.returnType != null) {
-            genWriteThing(sb, p.returnType, "result$");
+            p.returnType.genWriteThing(sb, "result$");
         }
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
             if (a.direction.equals("IN")) {
                 continue;
             }
-            genWriteThing(sb, a.type, "p" + i + "$");
+            a.type.genWriteThing(sb, "p" + i + "$");
         }
         sb.append("dbms_output.put_line('e '||to_char(sysdate,'mi:ss'));\n");
         sb.append("?:= an;\n");
