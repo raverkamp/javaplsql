@@ -115,6 +115,18 @@ public final class ProcedureCaller {
     static abstract class Type {
 
         public abstract String plsqlName();
+
+        // the data is transfered to the database in three tables one for numbers
+        // one for strings and one for dates. The ArgArrays contains this data.
+        // this method copies the data for Object o into ArgArrays a based on
+        // the type
+        public abstract void fillArgArrays(ArgArrays a, Object o);
+
+        // this is the inverse process . The result data is returned from 
+        // the database in three tables. Reconstruct the objects from the 
+        // data in the arrays based on the type
+        public abstract Object readFromResArrays(ResArrays a);
+
     }
 
     // the PL/SQL standrad types, identfied by their name DATE, VARCHAR2
@@ -130,9 +142,35 @@ public final class ProcedureCaller {
                 return this.name;
             }
         }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            if (this.name.equals("VARCHAR2")) {
+                a.addString((String) o);
+            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+                a.addNumber((Number) o);
+            } else if (this.name.equals("DATE")) {
+                a.addDate((java.util.Date) o);
+            } else {
+                throw new RuntimeException("unsupported named type");
+            }
+        }
+
+        public Object readFromResArrays(ResArrays a) {
+            if (this.name.equals("VARCHAR2")) {
+                return a.readString();
+            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+                return a.readBigDecimal();
+            } else if (this.name.equals("DATE")) {
+                return a.readDate();
+            } else {
+                throw new RuntimeException("unsupported named type: " + this.name);
+            }
+        }
     }
 
     static class Field {
+
         String name;
         Type type;
     }
@@ -148,6 +186,37 @@ public final class ProcedureCaller {
         public String plsqlName() {
             return this.owner + "." + this.package_ + "." + this.name;
         }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            if (o instanceof Map) {
+                Map m = (Map) o;
+                for (Field f : this.fields) {
+                    Object x;
+                    if (m.containsKey(f.name)) {
+                        x = m.get(f.name);
+                    } else {
+                        String n2 = f.name.toLowerCase();
+                        if (m.containsKey(n2)) {
+                            x = m.get(n2);
+                        } else {
+                            throw new RuntimeException("slot not found: " + f.name);
+                        }
+                    }
+                    f.type.fillArgArrays(a, x);
+                }
+            }
+        }
+
+        @Override
+        public Object readFromResArrays(ResArrays a) {
+            HashMap<String, Object> m = new HashMap<>();
+            for (Field f : this.fields) {
+                Object o = f.type.readFromResArrays(a);
+                m.put(f.name, o);
+            }
+            return m;
+        }
     }
 
     // type bla is table of blub;
@@ -162,6 +231,33 @@ public final class ProcedureCaller {
         @Override
         public String plsqlName() {
             return this.owner + "." + this.package_ + "." + this.name;
+        }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            if (o == null) {
+                a.addNumber((BigDecimal) null);
+            } else {
+                ArrayList l = (ArrayList) o;
+                a.addNumber(l.size());
+                for (Object x : l) {
+                    this.slottype.fillArgArrays(a, x);
+                }
+            }
+        }
+
+        public Object readFromResArrays(ResArrays a) {
+            BigDecimal b = a.readBigDecimal();
+            if (b == null) {
+                return null;
+            } else {
+                int size = b.intValue();
+                ArrayList res = new ArrayList();
+                for (int i = 0; i < size; i++) {
+                    res.add(this.slottype.readFromResArrays(a));
+                }
+                return res;
+            }
         }
     }
 
@@ -233,7 +329,6 @@ public final class ProcedureCaller {
         return res;
     }
 
-    
     // the combination of ArrayList<ArgumentsRow> and a position into this
     // it. Some kind of stream
     static class Args {
@@ -370,62 +465,6 @@ public final class ProcedureCaller {
         }
     }
 
-    static void fillNamedType(ArgArrays a, NamedType t, Object o) {
-        if (t.name.equals("VARCHAR2")) {
-            a.addString((String) o);
-        } else if (t.name.equals("NUMBER") || t.name.equals("INTEGER")) {
-            a.addNumber((Number) o);
-        } else if (t.name.equals("DATE")) {
-            a.addDate((java.util.Date) o);
-        } else {
-            throw new RuntimeException("unsupported named type");
-        }
-    }
-
-    static void fillTable(ArgArrays a, TableType t, Object o) {
-        if (o == null) {
-            a.addNumber((BigDecimal) null);
-        } else {
-            ArrayList l = (ArrayList) o;
-            a.addNumber(l.size());
-            for (Object x : l) {
-                fillThing(a, t.slottype, x);
-            }
-        }
-    }
-
-    static void fillRecord(ArgArrays a, RecordType t, Object o) {
-        if (o instanceof Map) {
-            Map m = (Map) o;
-            for (Field f : t.fields) {
-                Object x;
-                if (m.containsKey(f.name)) {
-                    x = m.get(f.name);
-                } else {
-                    String n2 = f.name.toLowerCase();
-                    if (m.containsKey(n2)) {
-                        x = m.get(n2);
-                    } else {
-                        throw new RuntimeException("slot not found: " + f.name);
-                    }
-                }
-                fillThing(a, f.type, x);
-            }
-        }
-    }
-
-    static void fillThing(ArgArrays a, Type t, Object o) {
-        if (t instanceof NamedType) {
-            fillNamedType(a, (NamedType) t, o);
-        } else if (t instanceof TableType) {
-            fillTable(a, (TableType) t, o);
-        } else if (t instanceof RecordType) {
-            fillRecord(a, (RecordType) t, o);
-        } else {
-            throw new RuntimeException("not suppotrted type");
-        }
-    }
-
     static class ResArrays {
 
         ArrayList<BigDecimal> decimal = new ArrayList<>();
@@ -455,53 +494,6 @@ public final class ProcedureCaller {
                 return null;
             }
             return new java.util.Date(ts.getTime());
-        }
-    }
-
-    static Object readNamedType(ResArrays a, NamedType t) {
-        if (t.name.equals("VARCHAR2")) {
-            return a.readString();
-        } else if (t.name.equals("NUMBER") || t.name.equals("INTEGER")) {
-            return a.readBigDecimal();
-        } else if (t.name.equals("DATE")) {
-            return a.readDate();
-        } else {
-            throw new RuntimeException("unsupported named type: " + t.name);
-        }
-    }
-
-    static Map<String, Object> readRecord(ResArrays a, RecordType t) {
-        HashMap<String, Object> m = new HashMap<>();
-        for (Field f : t.fields) {
-            Object o = readThing(a, f.type);
-            m.put(f.name, o);
-        }
-        return m;
-    }
-
-    static ArrayList readTable(ResArrays a, TableType t) {
-        BigDecimal b = a.readBigDecimal();
-        if (b == null) {
-            return null;
-        } else {
-            int size = b.intValue();
-            ArrayList res = new ArrayList();
-            for (int i = 0; i < size; i++) {
-                res.add(readThing(a, t.slottype));
-            }
-            return res;
-        }
-    }
-
-    static Object readThing(ResArrays a, Type t) {
-        if (t instanceof NamedType) {
-            return readNamedType(a, (NamedType) t);
-        } else if (t instanceof RecordType) {
-            return readRecord(a, (RecordType) t);
-        } else if (t instanceof TableType) {
-            return readTable(a, (TableType) t);
-        } else {
-            throw new RuntimeException("unsupported type " + t);
         }
     }
 
@@ -676,7 +668,7 @@ public final class ProcedureCaller {
                     continue;
                 }
                 Object o = args.get(arg.name);
-                fillThing(aa, arg.type, o);
+                arg.type.fillArgArrays(aa, o);
             }
 
             cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY("NUMBER_ARRAY", aa.decimal.toArray(new BigDecimal[0])));
@@ -705,14 +697,14 @@ public final class ProcedureCaller {
         }
         HashMap<String, Object> res = new HashMap<>();
         if (p.returnType != null) {
-            Object o = readThing(ra, p.returnType);
+            Object o = p.returnType.readFromResArrays(ra);
             res.put("RETURN", o);
         }
         for (Argument arg : p.arguments) {
             if (arg.direction.equals("IN")) {
                 continue;
             }
-            Object o = readThing(ra, arg.type);
+            Object o = arg.type.readFromResArrays(ra);
             res.put(arg.name, o);
         }
         return res;
