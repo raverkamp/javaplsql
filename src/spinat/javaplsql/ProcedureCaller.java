@@ -26,7 +26,6 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import oracle.jdbc.OracleCallableStatement;
@@ -362,7 +361,7 @@ public final class ProcedureCaller {
             this.varchar2.add(s);
         }
 
-        public void add(Date d) {
+        public void add(java.util.Date d) {
             if (d == null) {
                 this.date.add(null);
             } else {
@@ -377,7 +376,7 @@ public final class ProcedureCaller {
         } else if (t.name.equals("NUMBER") || t.name.equals("INTEGER")) {
             a.add((Number) o);
         } else if (t.name.equals("DATE")) {
-            a.add((Date) o);
+            a.add((java.util.Date) o);
         } else {
             throw new RuntimeException("unsupported named type");
         }
@@ -449,13 +448,13 @@ public final class ProcedureCaller {
             return res;
         }
 
-        public Date readDate() {
+        public java.util.Date readDate() {
             Timestamp ts = this.date.get(posdate);
             posdate++;
             if (ts == null) {
                 return null;
             }
-            return new Date(ts.getTime());
+            return new java.util.Date(ts.getTime());
         }
     }
 

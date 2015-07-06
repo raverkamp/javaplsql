@@ -90,3 +90,4 @@ convert "java records" (class constining only of public fields) to oracle record
 try to separate conversion exeptions (our fault) from exceptions in the procedure
   wrap the actual procedure call with an eception handler
 tests for behaviour with different users/schemas ans synonyms etc.
+handling of date-like typs, Timestamp, java.sql.Date. java.util.Date
