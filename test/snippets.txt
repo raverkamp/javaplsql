@@ -26,6 +26,8 @@ function f7(a integer,b varchar2,c date) return r1;
 
 procedure p7(x dual%rowtype);
 
+procedure p8(x boolean,y out boolean);
+
 end;
 ## p1_body
 create or replace package body p1 as
@@ -87,8 +89,13 @@ procedure p7(x dual%rowtype) is
 begin
   null;
 end;
-end;
 
+
+procedure p8(x boolean,y out boolean) is
+begin
+  y:= not x;
+end;
+end;
 ## proc1
 create or replace procedure proc1( x integer,y varchar2,z date) as
 begin

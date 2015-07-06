@@ -61,7 +61,7 @@ public class FuncTest {
         ar.put("ZI", new Date());
         Map<String, Object> res = new ProcedureCaller(connection).call("P1.P", ar);
         System.out.println(res);
-        assertTrue (res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"));
+        assertTrue(res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class FuncTest {
         Map<String, Object> res = new ProcedureCaller(connection).call("P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
-        assertTrue (m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"));
+        assertTrue(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"));
     }
 
     public void test3Base(int size) throws SQLException {
@@ -94,7 +94,7 @@ public class FuncTest {
         for (int i = 0; i < l.size(); i++) {
             Map<String, Object> m = l.get(i);
             Map<String, Object> m2 = l2.get(i);
-            assertTrue (m2.get("X").equals(((BigDecimal) m.get("X")).add(BigDecimal.ONE))
+            assertTrue(m2.get("X").equals(((BigDecimal) m.get("X")).add(BigDecimal.ONE))
                     && m2.get("Y").equals("" + m.get("Y") + m.get("Y")));
         }
     }
@@ -129,7 +129,7 @@ public class FuncTest {
             for (int j = 0; j < x.size(); j++) {
                 Map<String, Object> m1 = (Map<String, Object>) x.get(j);
                 Map<String, Object> m2 = (Map<String, Object>) y.get(j);
-                assertTrue (m1.get("X").equals(m2.get("X")) && m1.get("Y").equals(m2.get("Y"))
+                assertTrue(m1.get("X").equals(m2.get("X")) && m1.get("Y").equals(m2.get("Y"))
                         && m1.get("Z").equals(m2.get("Z")));
             }
         }
@@ -147,7 +147,7 @@ public class FuncTest {
         Map<String, Object> res = new ProcedureCaller(connection).call("P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
-        assertTrue (m.get("X") == null && m.get("Y") == null);
+        assertTrue(m.get("X") == null && m.get("Y") == null);
     }
 
     @Test
@@ -162,7 +162,7 @@ public class FuncTest {
         System.out.println(res);
         ArrayList l2 = (ArrayList) res.get("A");
         for (int i = 0; i < l2.size(); i++) {
-            assertTrue (l2.get(i) == null);
+            assertTrue(l2.get(i) == null);
         }
     }
 
@@ -190,8 +190,31 @@ public class FuncTest {
         a.put("C", dat);
         Map<String, Object> m = new ProcedureCaller(connection).call("p1.f7", a);
         Map<String, Object> r = (Map<String, Object>) m.get("RETURN");
-        assertTrue (r.get("X").equals(BigDecimal.valueOf(-123))
+        assertTrue(r.get("X").equals(BigDecimal.valueOf(-123))
                 && r.get("Y").equals("rote gruetze")
                 && r.get("Z").equals(dat));
+    }
+
+    @Test
+    public void test10() throws SQLException {
+        Map<String, Object> a = new HashMap<>();
+        {
+            a.put("X", true);
+            Map<String, Object> m = new ProcedureCaller(connection).call("p1.p8", a);
+            Boolean y = (Boolean) (m.get("Y"));
+            assertTrue(!y);
+        }
+        {
+            a.put("X", false);
+            Map<String, Object> m = new ProcedureCaller(connection).call("p1.p8", a);
+            Boolean y = (Boolean) (m.get("Y"));
+            assertTrue(y);
+        }
+        {
+            a.put("X", null);
+            Map<String, Object> m = new ProcedureCaller(connection).call("p1.p8", a);
+            Boolean y = (Boolean) (m.get("Y"));
+            assertTrue(y == null);
+        }
     }
 }

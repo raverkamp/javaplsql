@@ -22,7 +22,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-
 public class PerfTest {
 
     public PerfTest() {
@@ -75,7 +74,7 @@ public class PerfTest {
         for (int i = 0; i < l.size(); i++) {
             Map<String, Object> m = l.get(i);
             Map<String, Object> m2 = l2.get(i);
-            assertTrue (m2.get("X").equals(((BigDecimal) m.get("X")).add(BigDecimal.ONE))
+            assertTrue(m2.get("X").equals(((BigDecimal) m.get("X")).add(BigDecimal.ONE))
                     && m2.get("Y").equals("" + m.get("Y") + m.get("Y")));
         }
     }
@@ -85,7 +84,7 @@ public class PerfTest {
         DbmsOutput.enableDbmsOutput(connection, 0);
         for (int i = 0; i < k; i++) {
             long l = System.currentTimeMillis();
-            test3Base( n);
+            test3Base(n);
             l = System.currentTimeMillis() - l;
             System.out.println("" + n + ": " + l);
             for (String s : DbmsOutput.fetchDbmsOutput(connection)) {
@@ -165,7 +164,7 @@ public class PerfTest {
         Map<String, Object> res = new ProcedureCaller(connection).call("P1.P5", args);
         ArrayList<String> b = (ArrayList<String>) res.get("B");
         for (int i = 0; i < Math.max(a.size(), b.size()); i++) {
-            assertEquals(a.get(i),b.get(i)) ;
+            assertEquals(a.get(i), b.get(i));
         }
     }
 

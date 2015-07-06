@@ -80,7 +80,7 @@ and copy the Java file ProcedureCaller into your project
 
 Things to do:
 refactor meta data, do dispatch for different types via methods
-add support for boolean and raw
+add support for raw
 cache the meta data
 add support for overloaded functions 
 add support for ref cursors

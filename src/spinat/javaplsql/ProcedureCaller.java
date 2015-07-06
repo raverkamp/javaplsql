@@ -130,7 +130,7 @@ public final class ProcedureCaller {
         // generate the PL/SQL code to read the data for the arguments from the 
         // three PL/SQL arrays
         public abstract void genReadOutThing(StringBuilder sb, String target);
-         
+
         // generate the PL/SQL code to write the data from the OUT and IN/OUT 
         // and the return value to the three arrays
         public abstract void genWriteThing(StringBuilder sb, String source);
@@ -146,6 +146,8 @@ public final class ProcedureCaller {
         public String plsqlName() {
             if (this.name.equals("VARCHAR2")) {
                 return "varchar2(32767)";
+            } else if (this.name.equals("PL/SQL BOOLEAN")) {
+                return "boolean";
             } else {
                 return this.name;
             }
@@ -157,6 +159,14 @@ public final class ProcedureCaller {
                 a.addString((String) o);
             } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
                 a.addNumber((Number) o);
+            } else if (this.name.equals("PL/SQL BOOLEAN")) {
+                if (o == null) {
+                    a.addNumber(null);
+                } else {
+                    boolean b = (Boolean) o;
+                    a.addNumber(b ? 1 : 0);
+                }
+
             } else if (this.name.equals("DATE")) {
                 a.addDate((java.util.Date) o);
             } else {
@@ -171,7 +181,14 @@ public final class ProcedureCaller {
                 return a.readBigDecimal();
             } else if (this.name.equals("DATE")) {
                 return a.readDate();
-            } else {
+           } else if (this.name.equals("PL/SQL BOOLEAN")) {
+               BigDecimal x = a.readBigDecimal();
+               if (x==null) {
+                   return null;
+               } else {
+                   return x.equals(BigDecimal.ONE);
+               }
+           } else {
                 throw new RuntimeException("unsupported named type: " + this.name);
             }
         }
@@ -184,6 +201,8 @@ public final class ProcedureCaller {
                 sb.append("an.extend; an(an.last):= " + source + ";\n");
             } else if (this.name.equals("DATE")) {
                 sb.append("ad.extend; ad(ad.last):= " + source + ";\n");
+            } else if (this.name.equals("PL/SQL BOOLEAN")) {
+                sb.append("an.extend; an(an.last):= case when " + source + " then 1 when not " + source + " then 0 else null end;\n");
             } else {
                 throw new RuntimeException("unsupported base type");
             }
@@ -197,6 +216,8 @@ public final class ProcedureCaller {
                 sb.append(target).append(":= an(inn);inn:=inn+1;\n");
             } else if (this.name.equals("DATE")) {
                 sb.append(target).append(":= ad(ind); ind := ind+1;\n");
+            } else if (this.name.equals("PL/SQL BOOLEAN")) {
+                sb.append(target).append(":= an(inn)=1; inn := inn+1;\n");
             } else {
                 throw new RuntimeException("unsupported base type");
             }
@@ -448,7 +469,8 @@ public final class ProcedureCaller {
         Field f = new Field();
         f.name = r.argument_name;
         if (r.data_type.equals("NUMBER") || r.data_type.equals("VARCHAR2")
-                || r.data_type.equals("DATE") || r.data_type.equals("INTEGER")) {
+                || r.data_type.equals("DATE") || r.data_type.equals("INTEGER")
+                || r.data_type.equals("PL/SQL BOOLEAN")) {
             NamedType t = new NamedType();
             t.name = r.data_type;
             f.type = t;

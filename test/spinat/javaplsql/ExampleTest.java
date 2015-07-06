@@ -27,20 +27,20 @@ import static org.junit.Assert.*;
  * @author roland
  */
 public class ExampleTest {
-    
+
     public ExampleTest() {
     }
-    
+
     @BeforeClass
     public static void setUpClass() {
     }
-    
+
     @AfterClass
     public static void tearDownClass() {
     }
-    
-    
+
     OracleConnection connection;
+
     @Before
     public void setUp() throws SQLException, IOException {
         Properties props = TestUtil.getProperties("config1.txt");
@@ -48,7 +48,7 @@ public class ExampleTest {
         connection = (OracleConnection) DriverManager.getConnection(props.getProperty("url"),
                 user, props.getProperty("pw"));
     }
-    
+
     @After
     public void tearDown() throws SQLException {
         this.connection.close();
@@ -58,8 +58,8 @@ public class ExampleTest {
     public void example1() throws SQLException {
         Statement stm = connection.createStatement();
         stm.execute("create or replace package example1 as \n"
-                +" type rec is record (x number,y varchar2(200),z date);\n"
-                +" type array is table of rec;\n"
+                + " type rec is record (x number,y varchar2(200),z date);\n"
+                + " type array is table of rec;\n"
                 + "procedure p(a in array,b out array);\n"
                 + "end;");
         stm.execute("create or replace package body example1 as\n"
@@ -67,21 +67,21 @@ public class ExampleTest {
                 + " begin\n"
                 + " b:=a;\n"
                 + " end;\n"
-                +" end;");
-        ArrayList<Map<String,Object>> al = new ArrayList<>();
-        for(int i=0;i<10;i++) {
-            Map<String,Object> m = new HashMap<>();
+                + " end;");
+        ArrayList<Map<String, Object>> al = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            Map<String, Object> m = new HashMap<>();
             m.put("X", i);
-            m.put("Y", "text-"+i);
+            m.put("Y", "text-" + i);
             m.put("Z", new Date()); // simple value?
             al.add(m);
         }
-        Map<String,Object> args = new HashMap<>();
+        Map<String, Object> args = new HashMap<>();
         args.put("A", al);
-        Map<String,Object> result = new ProcedureCaller(connection).call("example1.p",args);
-        for(Object o: (ArrayList<Map<String,Object>>) result.get("B")) {
+        Map<String, Object> result = new ProcedureCaller(connection).call("example1.p", args);
+        for (Object o : (ArrayList<Map<String, Object>>) result.get("B")) {
             System.out.println(o);
         }
-        
+
     }
 }
