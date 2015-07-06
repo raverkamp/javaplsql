@@ -339,7 +339,7 @@ public final class ProcedureCaller {
         ArrayList<String> varchar2 = new ArrayList<>();
         ArrayList<java.sql.Timestamp> date = new ArrayList<>();
 
-        public void add(Number n) {
+        public void addNumber(Number n) {
             if (n == null) {
                 this.decimal.add(null);
             } else if (n instanceof Integer) {
@@ -357,11 +357,11 @@ public final class ProcedureCaller {
             }
         }
 
-        public void add(String s) {
+        public void addString(String s) {
             this.varchar2.add(s);
         }
 
-        public void add(java.util.Date d) {
+        public void addDate(java.util.Date d) {
             if (d == null) {
                 this.date.add(null);
             } else {
@@ -372,11 +372,11 @@ public final class ProcedureCaller {
 
     static void fillNamedType(ArgArrays a, NamedType t, Object o) {
         if (t.name.equals("VARCHAR2")) {
-            a.add((String) o);
+            a.addString((String) o);
         } else if (t.name.equals("NUMBER") || t.name.equals("INTEGER")) {
-            a.add((Number) o);
+            a.addNumber((Number) o);
         } else if (t.name.equals("DATE")) {
-            a.add((java.util.Date) o);
+            a.addDate((java.util.Date) o);
         } else {
             throw new RuntimeException("unsupported named type");
         }
@@ -384,10 +384,10 @@ public final class ProcedureCaller {
 
     static void fillTable(ArgArrays a, TableType t, Object o) {
         if (o == null) {
-            a.add((BigDecimal) null);
+            a.addNumber((BigDecimal) null);
         } else {
             ArrayList l = (ArrayList) o;
-            a.add(l.size());
+            a.addNumber(l.size());
             for (Object x : l) {
                 fillThing(a, t.slottype, x);
             }
