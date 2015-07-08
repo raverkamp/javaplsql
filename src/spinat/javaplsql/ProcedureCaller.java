@@ -157,7 +157,9 @@ public final class ProcedureCaller {
         public void fillArgArrays(ArgArrays a, Object o) {
             if (this.name.equals("VARCHAR2")) {
                 a.addString((String) o);
-            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+            } else if (this.name.equals("NUMBER")
+                    || this.name.equals("INTEGER")
+                    || this.name.equals("BINARY_INTEGER")) {
                 a.addNumber((Number) o);
             } else if (this.name.equals("PL/SQL BOOLEAN")) {
                 if (o == null) {
@@ -177,18 +179,20 @@ public final class ProcedureCaller {
         public Object readFromResArrays(ResArrays a) {
             if (this.name.equals("VARCHAR2")) {
                 return a.readString();
-            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+            } else if (this.name.equals("NUMBER")
+                    || this.name.equals("INTEGER")
+                    || this.name.equals("BINARY_INTEGER")) {
                 return a.readBigDecimal();
             } else if (this.name.equals("DATE")) {
                 return a.readDate();
-           } else if (this.name.equals("PL/SQL BOOLEAN")) {
-               BigDecimal x = a.readBigDecimal();
-               if (x==null) {
-                   return null;
-               } else {
-                   return x.equals(BigDecimal.ONE);
-               }
-           } else {
+            } else if (this.name.equals("PL/SQL BOOLEAN")) {
+                BigDecimal x = a.readBigDecimal();
+                if (x == null) {
+                    return null;
+                } else {
+                    return x.equals(BigDecimal.ONE);
+                }
+            } else {
                 throw new RuntimeException("unsupported named type: " + this.name);
             }
         }
@@ -197,7 +201,9 @@ public final class ProcedureCaller {
         public void genWriteThing(StringBuilder sb, String source) {
             if (this.name.equals("VARCHAR2")) {
                 sb.append("av.extend; av(av.last) := " + source + ";\n");
-            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+            } else if (this.name.equals("NUMBER")
+                    || this.name.equals("INTEGER")
+                    || this.name.equals("BINARY_INTEGER")) {
                 sb.append("an.extend; an(an.last):= " + source + ";\n");
             } else if (this.name.equals("DATE")) {
                 sb.append("ad.extend; ad(ad.last):= " + source + ";\n");
@@ -212,7 +218,9 @@ public final class ProcedureCaller {
         public void genReadOutThing(StringBuilder sb, String target) {
             if (this.name.equals("VARCHAR2")) {
                 sb.append(target).append(":= av(inv); inv := inv+1;\n");
-            } else if (this.name.equals("NUMBER") || this.name.equals("INTEGER")) {
+            } else if (this.name.equals("NUMBER")
+                    || this.name.equals("INTEGER")
+                    || this.name.equals("BINARY_INTEGER")) {
                 sb.append(target).append(":= an(inn);inn:=inn+1;\n");
             } else if (this.name.equals("DATE")) {
                 sb.append(target).append(":= ad(ind); ind := ind+1;\n");
@@ -468,9 +476,12 @@ public final class ProcedureCaller {
         ArgumentsRow r = a.getRow();
         Field f = new Field();
         f.name = r.argument_name;
-        if (r.data_type.equals("NUMBER") || r.data_type.equals("VARCHAR2")
-                || r.data_type.equals("DATE") || r.data_type.equals("INTEGER")
-                || r.data_type.equals("PL/SQL BOOLEAN")) {
+        if (r.data_type.equals("NUMBER")
+                || r.data_type.equals("VARCHAR2")
+                || r.data_type.equals("DATE")
+                || r.data_type.equals("INTEGER")
+                || r.data_type.equals("PL/SQL BOOLEAN")
+                || r.data_type.equals("BINARY_INTEGER")) {
             NamedType t = new NamedType();
             t.name = r.data_type;
             f.type = t;
@@ -501,7 +512,6 @@ public final class ProcedureCaller {
             }
             f.type = t;
             return f;
-
         }
         throw new RuntimeException("unsupported type: " + r.data_type);
     }

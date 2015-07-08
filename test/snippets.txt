@@ -28,6 +28,8 @@ procedure p7(x dual%rowtype);
 
 procedure p8(x boolean,y out boolean);
 
+procedure p9(x pls_integer,y out pls_integer);
+
 end;
 ## p1_body
 create or replace package body p1 as
@@ -95,6 +97,12 @@ procedure p8(x boolean,y out boolean) is
 begin
   y:= not x;
 end;
+
+procedure p9(x pls_integer,y out pls_integer) is
+begin
+  y:= -x;
+end;
+
 end;
 ## proc1
 create or replace procedure proc1( x integer,y varchar2,z date) as
