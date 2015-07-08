@@ -217,15 +217,18 @@ public class FuncTest {
             assertTrue(y == null);
         }
     }
-    
+
     @Test
     public void test11() throws SQLException {
         Map<String, Object> a = new HashMap<>();
         {
-            a.put("X", 1);
+            a.put("X1", 1);
+            a.put("X2", 19);
             Map<String, Object> m = new ProcedureCaller(connection).call("p1.p9", a);
-            BigDecimal y = (BigDecimal) m.get("Y");
-            assertTrue(y.equals(BigDecimal.valueOf(-1)));
+            BigDecimal y1 = (BigDecimal) m.get("Y1");
+            assertTrue(y1.equals(BigDecimal.valueOf(-1)));
+            BigDecimal y2 = (BigDecimal) m.get("Y2");
+            assertTrue(y2.equals(BigDecimal.valueOf(29)));
         }
 
     }

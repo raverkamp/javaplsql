@@ -27,6 +27,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Map;
 import oracle.jdbc.OracleCallableStatement;
@@ -40,6 +41,48 @@ public final class ProcedureCaller {
 
     public ProcedureCaller(OracleConnection connection) {
         this.connection = connection;
+    }
+
+    /**
+     * @return the numberTableName
+     */
+    public String getNumberTableName() {
+        return numberTableName;
+    }
+
+    /**
+     * @param numberTableName the numberTableName to set
+     */
+    public void setNumberTableName(String numberTableName) {
+        this.numberTableName = numberTableName;
+    }
+
+    /**
+     * @return the varchar2TableName
+     */
+    public String getVarchar2TableName() {
+        return varchar2TableName;
+    }
+
+    /**
+     * @param varchar2TableName the varchar2TableName to set
+     */
+    public void setVarchar2TableName(String varchar2TableName) {
+        this.varchar2TableName = varchar2TableName;
+    }
+
+    /**
+     * @return the dateTableName
+     */
+    public String getDateTableName() {
+        return dateTableName;
+    }
+
+    /**
+     * @param dateTableName the dateTableName to set
+     */
+    public void setDateTableName(String dateTableName) {
+        this.dateTableName = dateTableName;
     }
 
     /*
@@ -593,12 +636,16 @@ public final class ProcedureCaller {
         }
     }
 
-    static String createStatementString(Procedure p) {
+    private String numberTableName = "NUMBER_ARRAY";
+    private String varchar2TableName = "VARCHAR2_ARRAY";
+    private String dateTableName = "DATE_ARRAY";
+            
+    String createStatementString(Procedure p) {
         StringBuilder sb = new StringBuilder();
         sb.append("declare\n");
-        sb.append("an number_array;\n");
-        sb.append("av varchar2_array;\n");
-        sb.append("ad date_array;\n");
+        sb.append("an " + this.numberTableName +";\n");
+        sb.append("av " + this.varchar2TableName + " ;\n");
+        sb.append("ad " + this.dateTableName +";\n");
         sb.append("inn integer :=1;\n");
         sb.append("inv integer :=1;\n");
         sb.append("ind integer :=1;\n");
@@ -624,7 +671,9 @@ public final class ProcedureCaller {
             a.type.genReadOutThing(sb, "p" + i + "$");
         }
         sb.append("dbms_output.put_line('c '||to_char(sysdate,'mi:ss'));\n");
-        sb.append("an:= number_array();av:=varchar2_array();ad:=date_array();\n");
+        sb.append("an:= " + this.numberTableName +"();\n");
+        sb.append("av:= " + this.varchar2TableName +"();\n");
+        sb.append("ad:= " + this.dateTableName + "();\n");
         if (p.returnType != null) {
             sb.append("result$:=");
         }
@@ -673,13 +722,13 @@ public final class ProcedureCaller {
                 arg.type.fillArgArrays(aa, o);
             }
 
-            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY("NUMBER_ARRAY", aa.decimal.toArray(new BigDecimal[0])));
-            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY("VARCHAR2_ARRAY", aa.varchar2.toArray(new String[0])));
-            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY("DATE_ARRAY", aa.date.toArray(new Timestamp[0])));
+            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.numberTableName, aa.decimal.toArray(new BigDecimal[0])));
+            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.varchar2TableName, aa.varchar2.toArray(new String[0])));
+            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.dateTableName, aa.date.toArray(new Timestamp[0])));
 
-            cstm.registerOutParameter(4, OracleTypes.ARRAY, "NUMBER_ARRAY");
-            cstm.registerOutParameter(5, OracleTypes.ARRAY, "VARCHAR2_ARRAY");
-            cstm.registerOutParameter(6, OracleTypes.ARRAY, "DATE_ARRAY");
+            cstm.registerOutParameter(4, OracleTypes.ARRAY, this.numberTableName);
+            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.varchar2TableName);
+            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.dateTableName);
             cstm.execute();
             no = cstm.getARRAY(4);
             vo = cstm.getARRAY(5);

@@ -28,7 +28,7 @@ procedure p7(x dual%rowtype);
 
 procedure p8(x boolean,y out boolean);
 
-procedure p9(x pls_integer,y out pls_integer);
+procedure p9(x1 pls_integer,y1 out pls_integer,x2 natural,y2 out natural);
 
 end;
 ## p1_body
@@ -98,9 +98,10 @@ begin
   y:= not x;
 end;
 
-procedure p9(x pls_integer,y out pls_integer) is
+procedure p9(x1 pls_integer,y1 out pls_integer,x2 natural,y2 out natural) is
 begin
-  y:= -x;
+  y1:= -x1;
+  y2 := x2 + 10;
 end;
 
 end;
