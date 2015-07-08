@@ -555,7 +555,7 @@ public final class ProcedureCaller {
             Field f = eatArg(a);
             p.returnType = f.type;
         }
-        while (!a.isEmpty()) {
+        while (!a.isEmpty() && a.getFirst().overload == p.overload) {
             String io = a.getFirst().in_out;
             Field f = eatArg(a);
             Argument ar = new Argument();
@@ -639,13 +639,13 @@ public final class ProcedureCaller {
     private String numberTableName = "NUMBER_ARRAY";
     private String varchar2TableName = "VARCHAR2_ARRAY";
     private String dateTableName = "DATE_ARRAY";
-            
+
     String createStatementString(Procedure p) {
         StringBuilder sb = new StringBuilder();
         sb.append("declare\n");
-        sb.append("an " + this.numberTableName +";\n");
+        sb.append("an " + this.numberTableName + ";\n");
         sb.append("av " + this.varchar2TableName + " ;\n");
-        sb.append("ad " + this.dateTableName +";\n");
+        sb.append("ad " + this.dateTableName + ";\n");
         sb.append("inn integer :=1;\n");
         sb.append("inv integer :=1;\n");
         sb.append("ind integer :=1;\n");
@@ -671,8 +671,8 @@ public final class ProcedureCaller {
             a.type.genReadOutThing(sb, "p" + i + "$");
         }
         sb.append("dbms_output.put_line('c '||to_char(sysdate,'mi:ss'));\n");
-        sb.append("an:= " + this.numberTableName +"();\n");
-        sb.append("av:= " + this.varchar2TableName +"();\n");
+        sb.append("an:= " + this.numberTableName + "();\n");
+        sb.append("av:= " + this.varchar2TableName + "();\n");
         sb.append("ad:= " + this.dateTableName + "();\n");
         if (p.returnType != null) {
             sb.append("result$:=");
@@ -706,9 +706,10 @@ public final class ProcedureCaller {
         return sb.toString();
     }
 
-    Map<String, Object> call(
+    private Map<String, Object> call(
             Procedure p, Map<String, Object> args) throws SQLException {
         String s = createStatementString(p);
+        System.out.println(s);
         final ARRAY no;
         final ARRAY vo;
         final ARRAY do_;
@@ -766,17 +767,17 @@ public final class ProcedureCaller {
             + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
             + " from all_arguments \n"
             + " where owner = ? and package_name = ? and object_name = ?\n"
-            + " order by owner,package_name,object_name,sequence";
+            + " order by owner,package_name,object_name,overload,sequence";
 
     static String sql2 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,"
             + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,"
             + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
             + " from all_arguments \n"
             + " where object_id = ? \n"
-            + " order by owner,package_name,object_name,sequence";
+            + " order by owner,package_name,object_name,overload,sequence";
 
     public Map<String, Object> call(
-            String name, Map<String, Object> args) throws SQLException {
+            String name, int overload, Map<String, Object> args) throws SQLException {
         ResolvedName rn = resolveName(this.connection, name);
         if (rn.dblink != null) {
             throw new RuntimeException("no call over dblink");
@@ -809,9 +810,21 @@ public final class ProcedureCaller {
         if (argument_rows.isEmpty()) {
             throw new RuntimeException("object is not valid: " + name);
         }
-        Procedure p = eatProc(argument_rows);
-        p.original_name = name;
-        return call(p, args);
+        ArrayList<Procedure> procs = new ArrayList<>();
+        while (!argument_rows.isEmpty()) {
+            Procedure p = eatProc(argument_rows);
+            p.original_name = name;
+            procs.add(p);
+        }
+        if (overload > procs.size()) {
+            throw new RuntimeException("the overload does not exist for procedure/function " + name);
+        }
+        return call(procs.get(overload), args);
+    }
+
+    public Map<String, Object> call(
+            String name, Map<String, Object> args) throws SQLException {
+        return this.call(name, 0, args);
     }
 
 }

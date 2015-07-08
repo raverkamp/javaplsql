@@ -117,3 +117,29 @@ create or replace procedure proc1( x integer,y varchar2,z date) as
 begin
   null;
 end;
+
+## pack_overload_spec
+create or replace package pack_overload is
+
+procedure p1(x in varchar2,txt out varchar2);
+
+procedure p1(a in number,txt out varchar2);
+
+
+
+end;
+
+## pack_overload_body
+create or replace package body pack_overload is
+procedure p1(x in varchar2,txt out varchar2) is
+begin
+  txt := '1/'||x;
+end;
+
+procedure p1(a in number,txt out varchar2) is
+begin
+  txt := '2/'||a;
+end;
+
+
+end;
