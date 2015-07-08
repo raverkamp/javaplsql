@@ -25,6 +25,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -325,6 +326,7 @@ public final class ProcedureCaller {
             }
         }
 
+        @Override
         public Object readFromResArrays(ResArrays a) {
             BigDecimal b = a.readBigDecimal();
             if (b == null) {
@@ -418,8 +420,8 @@ public final class ProcedureCaller {
         String pls_type;
     }
 
-    static ArrayList<ArgumentsRow> fetchArgumentsRows(ResultSet rs) throws SQLException {
-        ArrayList<ArgumentsRow> res = new ArrayList<>();
+    static ArrayDeque<ArgumentsRow> fetchArgumentsRows(ResultSet rs) throws SQLException {
+        ArrayDeque<ArgumentsRow> res = new ArrayDeque<>();
         while (rs.next()) {
             ArgumentsRow r = new ArgumentsRow();
             r.owner = rs.getString("OWNER");
@@ -444,36 +446,11 @@ public final class ProcedureCaller {
         return res;
     }
 
-    // the combination of ArrayList<ArgumentsRow> and a position into this
-    // it. Some kind of stream
-    static class Args {
-
-        int pos;
-        final ArrayList<ArgumentsRow> args;
-
-        public Args(ArrayList<ArgumentsRow> args) {
-            this.args = args;
-            pos = 0;
-        }
-
-        boolean atEnd() {
-            return pos >= args.size();
-        }
-
-        public void next() {
-            pos++;
-        }
-
-        public ArgumentsRow getRow() {
-            return args.get(pos);
-        }
-    }
-
     // get a Field from Args a and advance the internal position to the position
     // after this Field.
     // due to the recursive structure of PL/SQL types this method is recursive
-    static Field eatArg(Args a) {
-        ArgumentsRow r = a.getRow();
+    static Field eatArg(ArrayDeque<ArgumentsRow> a) {
+        ArgumentsRow r = a.getFirst();
         Field f = new Field();
         f.name = r.argument_name;
         if (r.data_type.equals("NUMBER")
@@ -485,7 +462,7 @@ public final class ProcedureCaller {
             NamedType t = new NamedType();
             t.name = r.data_type;
             f.type = t;
-            a.next();
+            a.pop();
             return f;
         }
         if (r.data_type.equals("TABLE")) {
@@ -493,7 +470,7 @@ public final class ProcedureCaller {
             t.owner = r.type_owner;
             t.package_ = r.type_name;
             t.name = r.type_subname;
-            a.next();
+            a.pop();
             Field f2 = eatArg(a);
             t.slottype = f2.type;
             f.type = t;
@@ -506,8 +483,8 @@ public final class ProcedureCaller {
             t.name = r.type_subname;
             t.fields = new ArrayList<>();
             int level = r.data_level;
-            a.next();
-            while (!a.atEnd() && a.getRow().data_level > level) {
+            a.pop();
+            while (!a.isEmpty() && a.getFirst().data_level > level) {
                 t.fields.add(eatArg(a));
             }
             f.type = t;
@@ -516,26 +493,27 @@ public final class ProcedureCaller {
         throw new RuntimeException("unsupported type: " + r.data_type);
     }
 
-    static Procedure eatProc(Args a) {
+    static Procedure eatProc(ArrayDeque<ArgumentsRow> a) {
         Procedure p = new Procedure();
-        p.package_ = a.getRow().package_name;
-        p.name = a.getRow().object_name;
-        p.overload = a.getRow().overload;
-        p.owner = a.getRow().owner;
+        ArgumentsRow r = a.getFirst();
+        p.package_ = r.package_name;
+        p.name = r.object_name;
+        p.overload = r.overload;
+        p.owner = r.owner;
         p.arguments = new ArrayList<>();
-        if (a.getRow().data_type == null) {
+        if (a.getFirst().data_type == null) {
             // this is a procedure with no arguments
-            a.next();
+            a.pop();
             return p;
         }
-        if (a.getRow().position == 0) {
+        if (r.position == 0) {
             // this a function the return type is the first argument, the 
             // argument name is null
             Field f = eatArg(a);
             p.returnType = f.type;
         }
-        while (!a.atEnd()) {
-            String io = a.getRow().in_out;
+        while (!a.isEmpty()) {
+            String io = a.getFirst().in_out;
             Field f = eatArg(a);
             Argument ar = new Argument();
             ar.direction = io;
@@ -754,7 +732,7 @@ public final class ProcedureCaller {
         if (rn.dblink != null) {
             throw new RuntimeException("no call over dblink");
         }
-        ArrayList<ArgumentsRow> argument_rows = new ArrayList<>();
+        ArrayDeque<ArgumentsRow> argument_rows;
         PreparedStatement pstm;
 
         if (rn.part1_type == 7 || rn.part1_type == 8) {
@@ -782,8 +760,7 @@ public final class ProcedureCaller {
         if (argument_rows.isEmpty()) {
             throw new RuntimeException("object is not valid: " + name);
         }
-        Args args2 = new Args(argument_rows);
-        Procedure p = eatProc(args2);
+        Procedure p = eatProc(argument_rows);
         p.original_name = name;
         return call(p, args);
     }
