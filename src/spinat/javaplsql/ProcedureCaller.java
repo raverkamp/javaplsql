@@ -37,6 +37,13 @@ import oracle.sql.ARRAY;
 
 public final class ProcedureCaller {
 
+    public static class ConversionException extends RuntimeException {
+
+        public ConversionException(String bla) {
+            super(bla);
+        }
+    }
+
     final OracleConnection connection;
 
     public ProcedureCaller(OracleConnection connection) {
@@ -187,16 +194,14 @@ public final class ProcedureCaller {
 
     }
 
-    // the PL/SQL standrad types, identfied by their name DATE, VARCHAR2
+    // the PL/SQL standrad types, identfied by their name DATE, NUMBER
     static class NamedType extends Type {
 
-        String name; // varchar2, number, integer ...
+        String name; // number, integer ...
 
         @Override
         public String plsqlName() {
-            if (this.name.equals("VARCHAR2")) {
-                return "varchar2(32767)";
-            } else if (this.name.equals("PL/SQL BOOLEAN")) {
+            if (this.name.equals("PL/SQL BOOLEAN")) {
                 return "boolean";
             } else {
                 return this.name;
@@ -205,9 +210,7 @@ public final class ProcedureCaller {
 
         @Override
         public void fillArgArrays(ArgArrays a, Object o) {
-            if (this.name.equals("VARCHAR2")) {
-                a.addString((String) o);
-            } else if (this.name.equals("NUMBER")
+            if (this.name.equals("NUMBER")
                     || this.name.equals("INTEGER")
                     || this.name.equals("BINARY_INTEGER")) {
                 a.addNumber((Number) o);
@@ -227,9 +230,7 @@ public final class ProcedureCaller {
         }
 
         public Object readFromResArrays(ResArrays a) {
-            if (this.name.equals("VARCHAR2")) {
-                return a.readString();
-            } else if (this.name.equals("NUMBER")
+            if (this.name.equals("NUMBER")
                     || this.name.equals("INTEGER")
                     || this.name.equals("BINARY_INTEGER")) {
                 return a.readBigDecimal();
@@ -249,9 +250,7 @@ public final class ProcedureCaller {
 
         @Override
         public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
-            if (this.name.equals("VARCHAR2")) {
-                sb.append("av.extend; av(av.last) := " + source + ";\n");
-            } else if (this.name.equals("NUMBER")
+            if (this.name.equals("NUMBER")
                     || this.name.equals("INTEGER")
                     || this.name.equals("BINARY_INTEGER")) {
                 sb.append("an.extend; an(an.last):= " + source + ";\n");
@@ -266,9 +265,7 @@ public final class ProcedureCaller {
 
         @Override
         public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
-            if (this.name.equals("VARCHAR2")) {
-                sb.append(target).append(":= av(inv); inv := inv+1;\n");
-            } else if (this.name.equals("NUMBER")
+            if (this.name.equals("NUMBER")
                     || this.name.equals("INTEGER")
                     || this.name.equals("BINARY_INTEGER")) {
                 sb.append(target).append(":= an(inn);inn:=inn+1;\n");
@@ -279,6 +276,52 @@ public final class ProcedureCaller {
             } else {
                 throw new RuntimeException("unsupported base type");
             }
+        }
+    }
+
+    static class Varchar2Type extends Type {
+
+        String name; // varchar2, number, integer ...
+        int size; // 0 if unbounded, i.e. as direct parameter
+
+        @Override
+        public String plsqlName() {
+            if (size == 0) {
+                return "varchar2(32767)";
+            } else {
+                return "varchar2(" + size + ")";
+            }
+        }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            String s = (String) o;
+            if (s == null) {
+                a.addString(s);
+            } else {
+                int allowed_size = this.size == 0 ? 32767 : this.size;
+                if (s.length() <= allowed_size) {
+                    a.addString(s);
+                } else {
+                    throw new ConversionException("string is to large, allowed are "
+                            + allowed_size + ", given length " + s.length());
+                }
+            }
+        }
+
+        @Override
+        public Object readFromResArrays(ResArrays a) {
+            return a.readString();
+        }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
+            sb.append("av.extend; av(av.last) := " + source + ";\n");
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
+            sb.append(target).append(":= av(inv); inv := inv+1;\n");
         }
     }
 
@@ -308,15 +351,10 @@ public final class ProcedureCaller {
                     Object x;
                     if (m.containsKey(f.name)) {
                         x = m.get(f.name);
+                        f.type.fillArgArrays(a, x);
                     } else {
-                        String n2 = f.name.toLowerCase();
-                        if (m.containsKey(n2)) {
-                            x = m.get(n2);
-                        } else {
-                            throw new RuntimeException("slot not found: " + f.name);
-                        }
+                        throw new ConversionException("slot not found: " + f.name);
                     }
-                    f.type.fillArgArrays(a, x);
                 }
             }
         }
@@ -467,6 +505,7 @@ public final class ProcedureCaller {
         String type_name;
         String type_subname;
         String pls_type;
+        int data_length;
     }
 
     static ArrayDeque<ArgumentsRow> fetchArgumentsRows(ResultSet rs) throws SQLException {
@@ -490,6 +529,10 @@ public final class ProcedureCaller {
             r.type_name = rs.getString("TYPE_NAME");
             r.type_subname = rs.getString("TYPE_SUBNAME");
             r.pls_type = rs.getString("PLS_TYPE");
+            r.data_length = rs.getInt("DATA_LENGTH");
+            if (rs.wasNull()) {
+                r.data_length = 0;
+            }
             res.add(r);
         }
         return res;
@@ -503,7 +546,6 @@ public final class ProcedureCaller {
         Field f = new Field();
         f.name = r.argument_name;
         if (r.data_type.equals("NUMBER")
-                || r.data_type.equals("VARCHAR2")
                 || r.data_type.equals("DATE")
                 || r.data_type.equals("INTEGER")
                 || r.data_type.equals("PL/SQL BOOLEAN")
@@ -511,6 +553,14 @@ public final class ProcedureCaller {
             NamedType t = new NamedType();
             t.name = r.data_type;
             f.type = t;
+            a.pop();
+            return f;
+        }
+        if (r.data_type.equals("VARCHAR2")) {
+            Varchar2Type vt = new Varchar2Type();
+            vt.name = "VARCHAR2";
+            vt.size = r.data_length;
+            f.type = vt;
             a.pop();
             return f;
         }
@@ -728,8 +778,12 @@ public final class ProcedureCaller {
                 if (arg.direction.equals("OUT")) {
                     continue;
                 }
+                if (args.containsKey(arg.name)) {
                 Object o = args.get(arg.name);
                 arg.type.fillArgArrays(aa, o);
+                } else {
+                    throw new ConversionException("could not find argument " + arg.name);
+                }
             }
 
             cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.numberTableName, aa.decimal.toArray(new BigDecimal[0])));
@@ -773,14 +827,14 @@ public final class ProcedureCaller {
 
     static String sql1 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,\n"
             + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,\n"
-            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
+            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE,data_length\n"
             + " from all_arguments \n"
             + " where owner = ? and package_name = ? and object_name = ?\n"
             + " order by owner,package_name,object_name,overload,sequence";
 
     static String sql2 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,"
             + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,"
-            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE\n"
+            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE,data_length\n"
             + " from all_arguments \n"
             + " where object_id = ? \n"
             + " order by owner,package_name,object_name,overload,sequence";

@@ -14,7 +14,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-
 public class ErrorTest {
 
     public ErrorTest() {
@@ -51,11 +50,11 @@ public class ErrorTest {
     }
 
     @Test
-    public void test1() throws SQLException {
+    public void testRaiseApplicationError() throws SQLException {
         ProcedureCaller p = new ProcedureCaller(connection);
         Map<String, Object> a = new HashMap<>();
         a.put("ERRNUM", -20012);
-        a.put("txt", "schlimmer fehler");
+        a.put("TXT", "schlimmer fehler");
         // the output looks OK, maybe there is nothing to be done
         try {
             Map<String, Object> res = p.call("p1.raise_error", a);
@@ -63,6 +62,58 @@ public class ErrorTest {
         } catch (SQLException ex) {
             System.out.println(ex);
         }
-
     }
+
+    @Test
+    public void testToLargeVarchar2() throws SQLException {
+        Class cl = null;
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> r = new HashMap<>();
+        r.put("X", 1);
+        r.put("Y", new String(new char[201]));
+        r.put("Z", null);
+        a.put("A", r);
+        try {
+            Map<String, Object> res = p.call("p1.p2", a);
+        } catch (Exception ex) {
+            System.out.println(ex);
+            cl = ex.getClass();
+        }
+        assertEquals(ProcedureCaller.ConversionException.class, cl);
+    }
+
+    @Test
+    public void testSlotMissing() throws SQLException {
+        Class cl = null;
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> a = new HashMap<>();
+        Map<String, Object> r = new HashMap<>();
+        r.put("X", 1);
+        //r.put("Y", new String(new char[20]));
+        r.put("Z", null);
+        a.put("A", r);
+        try {
+            Map<String, Object> res = p.call("p1.p2", a);
+        } catch (Exception ex) {
+            System.out.println(ex);
+            cl = ex.getClass();
+        }
+        assertEquals(ProcedureCaller.ConversionException.class, cl);
+    }
+
+    @Test
+    public void testParamMissing() throws SQLException {
+        Class cl = null;
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> a = new HashMap<>();
+        try {
+            Map<String, Object> res = p.call("p1.p2", a);
+        } catch (Exception ex) {
+            System.out.println(ex);
+            cl = ex.getClass();
+        }
+        assertEquals(ProcedureCaller.ConversionException.class, cl);
+    }
+
 }
