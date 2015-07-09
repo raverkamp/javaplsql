@@ -27,7 +27,6 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Map;
 import oracle.jdbc.OracleCallableStatement;
