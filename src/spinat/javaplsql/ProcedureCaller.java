@@ -677,11 +677,11 @@ public final class ProcedureCaller {
             sb.append("result$:=");
         }
         sb.append(p.original_name + "(");
-        //sb.append(p.package_ + "." + p.name + "(");
         for (int i = 0; i < p.arguments.size(); i++) {
             if (i > 0) {
                 sb.append(", ");
             }
+            sb.append(" " + p.arguments.get(i).name +" => ");
             sb.append("p" + i + "$");
         }
         sb.append(");\n");
