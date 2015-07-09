@@ -29,6 +29,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import oracle.jdbc.OracleCallableStatement;
 import oracle.jdbc.OracleConnection;
 import oracle.jdbc.OracleTypes;
@@ -172,11 +173,17 @@ public final class ProcedureCaller {
 
         // generate the PL/SQL code to read the data for the arguments from the 
         // three PL/SQL arrays
-        public abstract void genReadOutThing(StringBuilder sb, String target);
+        // when reading out tables we need index variables, to keep the index variables
+        // distinct each gets its own number, we track that with AtomicInteger
+        // there is no concurrency involved we just need a box with an integer
+        // the generated pl/SQL block should only depend should depend deterministically
+        // on the procedure arguments. We do not want to blow up the statement cache
+        public abstract void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target);
 
         // generate the PL/SQL code to write the data from the OUT and IN/OUT 
         // and the return value to the three arrays
-        public abstract void genWriteThing(StringBuilder sb, String source);
+        // the reason for the AtomicInteger is the same as above
+        public abstract void genWriteThing(StringBuilder sb, AtomicInteger counter, String source);
 
     }
 
@@ -241,7 +248,7 @@ public final class ProcedureCaller {
         }
 
         @Override
-        public void genWriteThing(StringBuilder sb, String source) {
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
             if (this.name.equals("VARCHAR2")) {
                 sb.append("av.extend; av(av.last) := " + source + ";\n");
             } else if (this.name.equals("NUMBER")
@@ -258,7 +265,7 @@ public final class ProcedureCaller {
         }
 
         @Override
-        public void genReadOutThing(StringBuilder sb, String target) {
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
             if (this.name.equals("VARCHAR2")) {
                 sb.append(target).append(":= av(inv); inv := inv+1;\n");
             } else if (this.name.equals("NUMBER")
@@ -325,18 +332,18 @@ public final class ProcedureCaller {
         }
 
         @Override
-        public void genWriteThing(StringBuilder sb, String source) {
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
             for (Field f : this.fields) {
                 String a = source + "." + f.name;
-                f.type.genWriteThing(sb, a);
+                f.type.genWriteThing(sb, counter, a);
             }
         }
 
         @Override
-        public void genReadOutThing(StringBuilder sb, String target) {
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
             for (Field f : this.fields) {
                 String a = target + "." + f.name;
-                f.type.genReadOutThing(sb, a);
+                f.type.genReadOutThing(sb, counter, a);
             }
         }
     }
@@ -384,37 +391,35 @@ public final class ProcedureCaller {
         }
 
         // used for the index variables
-        static int counter = 0;
+        static AtomicInteger counter = new AtomicInteger(0);
 
         @Override
-        public void genWriteThing(StringBuilder sb, String source) {
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
             sb.append("an.extend;\n");
             sb.append(" if " + source + " is null then\n");
             sb.append("    an(an.last) := null;\n");
             sb.append("else \n");
             sb.append("  an(an.last) := nvl(" + source + ".last, 0);\n");
-            String index = "i" + counter;
-            counter++;
+            String index = "i" + counter.incrementAndGet();
             sb.append("for " + index + " in 1 .. nvl(" + source + ".last,0) loop\n");
-            this.slottype.genWriteThing(sb, source + "(" + index + ")");
+            this.slottype.genWriteThing(sb, counter, source + "(" + index + ")");
             sb.append("end loop;\n");
             sb.append("end if;\n");
         }
 
         @Override
-        public void genReadOutThing(StringBuilder sb, String target) {
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
             sb.append("size_ := an(inn); inn:= inn+1;\n");
             sb.append("if size_ is null then\n");
             sb.append("  ").append(target).append(":=null;\n");
             sb.append("else\n");
             sb.append(" ").append(target).append(" := new ")
                     .append(this.package_).append(".").append(this.name).append("();\n");
-            String index = "i" + counter;
-            counter++;
+            String index = "i" + counter.incrementAndGet();
             String newTarget = target + "(" + index + ")";
             sb.append("  for ").append(index).append(" in 1 .. size_ loop\n");
             sb.append("" + target + ".extend();\n");
-            this.slottype.genReadOutThing(sb, newTarget);
+            this.slottype.genReadOutThing(sb, counter, newTarget);
             sb.append("end loop;\n");
             sb.append("end if;\n");
         }
@@ -439,6 +444,8 @@ public final class ProcedureCaller {
         String name;
         int overload;
         ArrayList<Argument> arguments;
+        // used to store the generated pl/sql block
+        String plsqlstatement = null;
     }
 
     // this class corresponds 1:1 the columns in all_arguments, some columns are lft out
@@ -662,12 +669,13 @@ public final class ProcedureCaller {
         sb.append("av :=?;\n");
         sb.append("ad :=?;\n");
         sb.append("dbms_output.put_line('b '||to_char(sysdate,'mi:ss'));\n");
+        AtomicInteger counter = new AtomicInteger(0);
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
             if (a.direction.equals("OUT")) {
                 continue;
             }
-            a.type.genReadOutThing(sb, "p" + i + "$");
+            a.type.genReadOutThing(sb, counter, "p" + i + "$");
         }
         sb.append("dbms_output.put_line('c '||to_char(sysdate,'mi:ss'));\n");
         sb.append("an:= " + this.numberTableName + "();\n");
@@ -681,20 +689,20 @@ public final class ProcedureCaller {
             if (i > 0) {
                 sb.append(", ");
             }
-            sb.append(" " + p.arguments.get(i).name +" => ");
+            sb.append(" " + p.arguments.get(i).name + " => ");
             sb.append("p" + i + "$");
         }
         sb.append(");\n");
         sb.append("dbms_output.put_line('d '||to_char(sysdate,'mi:ss'));\n");
         if (p.returnType != null) {
-            p.returnType.genWriteThing(sb, "result$");
+            p.returnType.genWriteThing(sb, counter, "result$");
         }
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
             if (a.direction.equals("IN")) {
                 continue;
             }
-            a.type.genWriteThing(sb, "p" + i + "$");
+            a.type.genWriteThing(sb, counter, "p" + i + "$");
         }
         sb.append("dbms_output.put_line('e '||to_char(sysdate,'mi:ss'));\n");
         sb.append("?:= an;\n");
@@ -707,12 +715,14 @@ public final class ProcedureCaller {
 
     private Map<String, Object> call(
             Procedure p, Map<String, Object> args) throws SQLException {
-        String s = createStatementString(p);
-        System.out.println(s);
+        if (p.plsqlstatement == null) {
+            p.plsqlstatement = createStatementString(p);
+        }
+
         final ARRAY no;
         final ARRAY vo;
         final ARRAY do_;
-        try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(s)) {
+        try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
             ArgArrays aa = new ArgArrays();
             for (Argument arg : p.arguments) {
                 if (arg.direction.equals("OUT")) {
@@ -775,8 +785,8 @@ public final class ProcedureCaller {
             + " where object_id = ? \n"
             + " order by owner,package_name,object_name,overload,sequence";
 
-    public Map<String, Object> call(
-            String name, int overload, Map<String, Object> args) throws SQLException {
+    ArrayList<Procedure> getProcsFromDB(String name) throws SQLException {
+
         ResolvedName rn = resolveName(this.connection, name);
         if (rn.dblink != null) {
             throw new RuntimeException("no call over dblink");
@@ -814,6 +824,18 @@ public final class ProcedureCaller {
             Procedure p = eatProc(argument_rows);
             p.original_name = name;
             procs.add(p);
+        }
+        return procs;
+    }
+
+    Map<String, ArrayList<Procedure>> procsMap = new HashMap<>();
+
+    public Map<String, Object> call(
+            String name, int overload, Map<String, Object> args) throws SQLException {
+        ArrayList<Procedure> procs = procsMap.get(name);
+        if (procs == null) {
+            procs = getProcsFromDB(name);
+            procsMap.put(name, procs);
         }
         if (overload > procs.size()) {
             throw new RuntimeException("the overload does not exist for procedure/function " + name);
