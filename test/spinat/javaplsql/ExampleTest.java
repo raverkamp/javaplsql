@@ -59,17 +59,24 @@ public class ExampleTest {
                 + " b:=a;\n"
                 + " end;\n"
                 + " end;");
+        ProcedureCaller procCaller = new ProcedureCaller(connection);
+        // the input to he procedure example.p1 is a table of records
+        // the variable al is the table
         ArrayList<Map<String, Object>> al = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
+            // and the variable m is the record, in Java this is a Map<String,Object>
             Map<String, Object> m = new HashMap<>();
             m.put("X", i);
             m.put("Y", "text-" + i);
             m.put("Z", new Date()); // simple value?
             al.add(m);
         }
+        // arguments are transferd by name
         Map<String, Object> args = new HashMap<>();
+        // the argument names are case sensitive
         args.put("A", al);
-        Map<String, Object> result = new ProcedureCaller(connection).call("example1.p", args);
+        Map<String, Object> result = procCaller.call("example1.p", args);
+        // all out paramters are packed into a Map<String,Object> and returned
         for (Object o : (ArrayList<Map<String, Object>>) result.get("B")) {
             System.out.println(o);
         }
