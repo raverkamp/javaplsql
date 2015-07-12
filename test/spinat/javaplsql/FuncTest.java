@@ -232,4 +232,31 @@ public class FuncTest {
         }
 
     }
+    
+    @Test
+    public void testName1() throws SQLException {
+        Map<String, Object> a = new HashMap<>();
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String,Object> res;
+        res = p.call("p1.no_args",a);
+        res = p.call("\"P1\".no_args",a);
+        res = p.call("\"P1\".\"NO_ARGS\"",a);
+        res = p.call("p1.\"NO_ARGS\"",a);
+        res = p.call("p1.\"NO_ARGS\"",a);
+    }
+    
+    @Test
+    public void testName2() throws SQLException {
+        Map<String, Object> a = new HashMap<>();
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String,Object> res;
+        Exception ex= null;
+        try {
+        res = p.call("p1.this_proc_does_not_exist",a);
+        } catch(Exception exe) {
+            ex = exe;
+        }
+        assertTrue(ex instanceof RuntimeException);
+        assertTrue(ex.getMessage().contains("procedure in package does not exist or object is not valid"));
+    }
 }

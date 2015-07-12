@@ -871,7 +871,7 @@ public final class ProcedureCaller {
         }
         pstm.close();
         if (argument_rows.isEmpty()) {
-            throw new RuntimeException("object is not valid: " + name);
+            throw new RuntimeException("procedure in package does not exist or object is not valid: " + name);
         }
         ArrayList<Procedure> procs = new ArrayList<>();
         while (!argument_rows.isEmpty()) {

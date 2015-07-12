@@ -30,7 +30,9 @@ procedure p8(x boolean,y out boolean);
 
 procedure p9(x1 pls_integer,y1 out pls_integer,x2 natural,y2 out natural);
 
-procedure raise_error(errnum integer,txt varchar2) ;
+procedure raise_error(errnum integer,txt varchar2);
+
+procedure no_args;
 
 end;
 ## p1_body
@@ -109,6 +111,11 @@ end;
 procedure raise_error(errnum integer,txt varchar2) is
 begin
   raise_application_error(errnum,txt);
+end;
+
+procedure no_args is
+begin
+ null;
 end;
 
 end;

@@ -3,8 +3,50 @@
 The *javaplsql* system supports calling Oracle PL/SQL procedures from Java via JDBC with
 minimal preparatory work. Its main purpose is to make calling procdures with 
 complex arguments (records, tables) simpler. There is no code generation, 
-you just need to install three java collection types. 
+you just need to install three java collection types.
 
+== API
+There is one class +spinat.javaplsql.ProcedureCaller+. The constructor
+----
+ public ProcedureCaller(OracleConnection connection)
+----
+takes as argument the connection on which to execute the procedure calls.
+
+The method +call+ on the class ProcedureCaller
+----
+public Map<String, Object> call(
+           String name, int overload, Map<String, Object> args) throws SQLException
+----
+executes a stored procedure.	    
+The parameter name is the name of the stored procedure, its format follows the usual
+convention for oracle procedure names. It is possible use double quoted strings. 
+Synonyms are also resolved. In fact the procedure +dbms_utility.name_resolve+ is 
+used for resolving the procedure name.
+The parameter overload is the number of the overload.
+The parameter args contains the arguments for the call, the arguments are mapped by name.
+For each IN or IN OUT a value has to be given.
+The return value contains a value for each OUT or in OUT parameter. 
+If a function is called, its return value is placed under the key RETURN in the 
+return value.
+If there is no overloading, use the method
+----
+public Map<String, Object> call(
+           String name, Map<String, Object> args) throws SQLException
+----
+The system needs three PL/SQL table types, their default definition is:
+----
+create type number_array as table of number;
+create type varchar2_array as table of varchar2(32767);
+create type date_array as table of date;
+----
+If you do not like the 
+default names of the types you can change them. But you have to set the names
+on the +ProcedureCaller+ object with the following methods:
+----
+public void setNumberTableName(String numberTableName) 
+public void setVarchar2TableName(String varchar2TableName)
+public void setDateTableName(String dateTableName)
+----
 == Type Map
 
 .Java to PL/SQL
@@ -44,7 +86,6 @@ create or replace package body example1 as
 end;
 ----
 and connection being an OracleConnection, the following code
-
 ----
 ProcedureCaller procCaller = new ProcedureCaller(connection);
 // the input to he procedure example.p1 is a table of records
