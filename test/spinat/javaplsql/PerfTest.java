@@ -35,9 +35,9 @@ public class PerfTest {
     @Before
     public void setUp() throws SQLException, IOException {
         Properties props = TestUtil.getProperties("config1.txt");
-        String user = props.getProperty("user").toUpperCase();
+        String user = props.getProperty("user1").toUpperCase();
         connection = (OracleConnection) DriverManager.getConnection(props.getProperty("url"),
-                user, props.getProperty("pw"));
+                user, props.getProperty("pw1"));
         HashMap<String, String> a = TestUtil.loadSnippets("snippets.txt");
 
         Ddl.call(connection, a.get("p1_spec"));
@@ -134,7 +134,7 @@ public class PerfTest {
         for (int i = 0; i < rec_size; i++) {
             m.put("X" + i, i * 8.78);
             m.put("Y" + i, "String" + i);
-            m.put("z" + i, new Date());
+            m.put("Z" + i, new Date());
         }
         for (int i = 0; i < args_size; i++) {
             args.put("IN" + i, m);

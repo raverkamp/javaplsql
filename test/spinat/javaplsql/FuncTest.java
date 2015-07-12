@@ -35,9 +35,9 @@ public class FuncTest {
     @Before
     public void setUp() throws SQLException, IOException {
         Properties props = TestUtil.getProperties("config1.txt");
-        String user = props.getProperty("user").toUpperCase();
+        String user = props.getProperty("user1").toUpperCase();
         connection = (OracleConnection) DriverManager.getConnection(props.getProperty("url"),
-                user, props.getProperty("pw"));
+                user, props.getProperty("pw1"));
         HashMap<String, String> a = TestUtil.loadSnippets("snippets.txt");
 
         Ddl.call(connection, a.get("p1_spec"));
