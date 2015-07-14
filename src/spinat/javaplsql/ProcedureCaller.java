@@ -44,7 +44,17 @@ public final class ProcedureCaller {
         }
     }
 
-    final OracleConnection connection;
+    private final OracleConnection connection;
+    private String numberTableName = "NUMBER_ARRAY";
+    private String varchar2TableName = "VARCHAR2_ARRAY";
+    private String dateTableName = "DATE_ARRAY";
+
+    // unfortunately the JDBC retrival of Array Descriptors does not care about
+    // set current_schema = 
+    // therefore we resolve the name and store schema.name in these fields
+    private String effectiveNumberTableName = null;
+    private String effectiveVarchar2TableName = null;
+    private String effectiveDateTableName = null;
 
     public ProcedureCaller(OracleConnection connection) {
         this.connection = connection;
@@ -62,6 +72,7 @@ public final class ProcedureCaller {
      */
     public void setNumberTableName(String numberTableName) {
         this.numberTableName = numberTableName;
+        this.effectiveNumberTableName = null;
     }
 
     /**
@@ -76,6 +87,7 @@ public final class ProcedureCaller {
      */
     public void setVarchar2TableName(String varchar2TableName) {
         this.varchar2TableName = varchar2TableName;
+        this.effectiveVarchar2TableName = null;
     }
 
     /**
@@ -90,6 +102,7 @@ public final class ProcedureCaller {
      */
     public void setDateTableName(String dateTableName) {
         this.dateTableName = dateTableName;
+        this.effectiveDateTableName = null;
     }
 
     /*
@@ -137,11 +150,15 @@ public final class ProcedureCaller {
         }
     }
 
-    public static ResolvedName resolveName(OracleConnection con, String name) throws SQLException {
+    public static ResolvedName resolveName(OracleConnection con, String name, boolean typeContext) throws SQLException {
         try (CallableStatement cstm = con.prepareCall(
                 "begin dbms_utility.name_resolve(?,?,?,?,?,?,?,?);end;")) {
             cstm.setString(1, name);
-            cstm.setInt(2, 1); // is context PL/SQL code 
+            if (typeContext) {
+                cstm.setInt(2, 7);
+            } else {
+                cstm.setInt(2, 1); // is context PL/SQL code 
+            }
             cstm.registerOutParameter(3, Types.VARCHAR);
             cstm.registerOutParameter(4, Types.VARCHAR);
             cstm.registerOutParameter(5, Types.VARCHAR);
@@ -160,6 +177,14 @@ public final class ProcedureCaller {
             BigDecimal object_number = cstm.getBigDecimal(8);
             return new ResolvedName(schema, part1, part2, dblink, part1_type, object_number.toBigIntegerExact());
         }
+    }
+
+    private String computeEffectiveName(String name) throws SQLException {
+        if (name.contains(".")) {
+            return name;
+        }
+        ResolvedName rn = resolveName(connection, name,true);
+        return rn.schema + "." + name;
     }
 
     // represents types from PL/SQL
@@ -229,6 +254,7 @@ public final class ProcedureCaller {
             }
         }
 
+        @Override
         public Object readFromResArrays(ResArrays a) {
             if (this.name.equals("NUMBER")
                     || this.name.equals("INTEGER")
@@ -692,10 +718,6 @@ public final class ProcedureCaller {
         }
     }
 
-    private String numberTableName = "NUMBER_ARRAY";
-    private String varchar2TableName = "VARCHAR2_ARRAY";
-    private String dateTableName = "DATE_ARRAY";
-
     String createStatementString(Procedure p) {
         StringBuilder sb = new StringBuilder();
         sb.append("declare\n");
@@ -768,6 +790,15 @@ public final class ProcedureCaller {
         if (p.plsqlstatement == null) {
             p.plsqlstatement = createStatementString(p);
         }
+        if (this.effectiveNumberTableName == null) {
+            this.effectiveNumberTableName = computeEffectiveName(this.numberTableName);
+        }
+        if (this.effectiveVarchar2TableName == null) {
+            this.effectiveVarchar2TableName = computeEffectiveName(this.varchar2TableName);
+        }
+        if (this.effectiveDateTableName == null) {
+            this.effectiveDateTableName = computeEffectiveName(this.dateTableName);
+        }
 
         final ARRAY no;
         final ARRAY vo;
@@ -779,20 +810,20 @@ public final class ProcedureCaller {
                     continue;
                 }
                 if (args.containsKey(arg.name)) {
-                Object o = args.get(arg.name);
-                arg.type.fillArgArrays(aa, o);
+                    Object o = args.get(arg.name);
+                    arg.type.fillArgArrays(aa, o);
                 } else {
                     throw new ConversionException("could not find argument " + arg.name);
                 }
             }
 
-            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.numberTableName, aa.decimal.toArray(new BigDecimal[0])));
-            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.varchar2TableName, aa.varchar2.toArray(new String[0])));
-            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.dateTableName, aa.date.toArray(new Timestamp[0])));
+            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
+            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
+            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
 
-            cstm.registerOutParameter(4, OracleTypes.ARRAY, this.numberTableName);
-            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.varchar2TableName);
-            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.dateTableName);
+            cstm.registerOutParameter(4, OracleTypes.ARRAY, this.effectiveNumberTableName);
+            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
+            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveDateTableName);
             cstm.execute();
             no = cstm.getARRAY(4);
             vo = cstm.getARRAY(5);
@@ -841,7 +872,7 @@ public final class ProcedureCaller {
 
     ArrayList<Procedure> getProcsFromDB(String name) throws SQLException {
 
-        ResolvedName rn = resolveName(this.connection, name);
+        ResolvedName rn = resolveName(this.connection, name,false);
         if (rn.dblink != null) {
             throw new RuntimeException("no call over dblink");
         }

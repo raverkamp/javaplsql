@@ -1,5 +1,6 @@
 package spinat.javaplsql;
 
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.StringTokenizer;
@@ -36,6 +37,22 @@ public class Ddl {
     public static void call(OracleConnection con, String... s) throws SQLException {
         try (Statement stm = con.createStatement()) {
             stm.execute(String.join("\n", s));
+        }
+    }
+
+    public static void dropSynonyms(OracleConnection con) throws SQLException {
+        Statement stm = con.createStatement();
+        ResultSet rs = stm.executeQuery("select synonym_name from user_synonyms");
+        while (rs.next()) {
+            Ddl.call(con, "drop synonym " + rs.getString(1));
+        }
+    }
+
+    public static void dropGrants(OracleConnection con) throws SQLException {
+        Statement stm = con.createStatement();
+        ResultSet rs = stm.executeQuery("select grantee,table_name,privilege from USER_TAB_PRIVS_MADE");
+        while (rs.next()) {
+            Ddl.call(con, "revoke " + rs.getString("PRIVILEGE") + " on " + rs.getString("TABLE_NAME") + " from " + rs.getString("GRANTEE"));
         }
     }
 }
