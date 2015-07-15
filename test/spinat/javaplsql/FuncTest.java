@@ -16,6 +16,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import spinat.javaplsql.ProcedureCaller.Box;
 
 public class FuncTest {
 
@@ -63,6 +64,22 @@ public class FuncTest {
         System.out.println(res);
         assertTrue(res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"));
     }
+    
+    
+    @Test
+    public void t1p() throws SQLException {
+        HashMap<String, Object> ar = new HashMap<>();
+        ar.put("XI", 12);
+        ar.put("YI", "x");
+        ar.put("ZI", new Date());
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<BigDecimal> xo = new Box<>();
+        Box<String> yo = new Box<>();
+        Box<java.sql.Timestamp> zo = new Box<>();
+        
+        p.callPositional("P1.P",12,"x",new Date(), xo,yo,zo);
+        assertTrue(xo.value.equals(new BigDecimal(13)) && yo.value.equals("xx"));
+    }
 
     @Test
     public void test2() throws SQLException {
@@ -75,6 +92,19 @@ public class FuncTest {
         Map<String, Object> res = new ProcedureCaller(connection).call("P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
+        assertTrue(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"));
+    }
+    
+     @Test
+    public void test2p() throws SQLException {
+        Map<String, Object> a = new HashMap();
+        a.put("X", 12);
+        a.put("Y", "x");
+        a.put("Z", new Date());
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<Map<String,Object>> b = new Box<>();
+        p.callPositional("P1.P2", a,b);
+        Map<String, Object> m = b.value;
         assertTrue(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"));
     }
 
@@ -147,6 +177,18 @@ public class FuncTest {
         Map<String, Object> res = new ProcedureCaller(connection).call("P1.P2", ar);
         System.out.println(res);
         Map<String, Object> m = (Map<String, Object>) res.get("B");
+        assertTrue(m.get("X") == null && m.get("Y") == null);
+    }
+    
+    @Test
+    public void test5p() throws SQLException {
+        Map<String, Object> a = new HashMap();
+        a.put("X", null);
+        a.put("Y", null);
+        a.put("Z", null);
+        Box<Map> b = new Box<>();
+        new ProcedureCaller(connection).callPositional("P1.P2", a,b);
+        Map<String, Object> m = (Map<String, Object>) b.value;
         assertTrue(m.get("X") == null && m.get("Y") == null);
     }
 

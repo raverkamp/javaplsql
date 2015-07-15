@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
+import spinat.javaplsql.ProcedureCaller.Box;
 
 public class OverloadTest {
 
@@ -56,6 +57,29 @@ public class OverloadTest {
             args.put("A", 17);
             Map<String, Object> res = p.call("pack_overload.p1", 2, args);
             assertEquals("2/17", res.get("TXT"));
+        }
+        {
+            Map<String, Object> args = new HashMap<>();
+            args.put("X", "bla");
+            Map<String, Object> res2 = p.call("pack_overload.p1", 1, args);
+            assertEquals("1/bla", res2.get("TXT"));
+        }
+        
+        {
+            Map<String, Object> args = new HashMap<>();
+            args.put("A", "js");
+            Map<String, Object> res2 = p.call("pack_overload.p1", 3, args);
+            assertEquals("3/js", res2.get("TXT"));
+        }
+    }
+    
+     @Test
+    public void test1p() throws SQLException {
+        ProcedureCaller p = new ProcedureCaller(connection);
+        {
+            Box<String> b = new Box<>();
+            p.callPositionalO("pack_overload.p1", 2, 17,b);
+            assertEquals("2/17", b.value);
         }
         {
             Map<String, Object> args = new HashMap<>();

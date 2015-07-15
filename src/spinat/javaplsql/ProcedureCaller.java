@@ -43,7 +43,20 @@ public final class ProcedureCaller {
             super(bla);
         }
     }
-    
+
+    public static class Box<X> {
+
+        public X value;
+
+        public Box() {
+            this.value = null;
+        }
+
+        public Box(X x) {
+            this.value = x;
+        }
+    }
+
     private final OracleConnection connection;
     private String numberTableName = "NUMBER_ARRAY";
     private String varchar2TableName = "VARCHAR2_ARRAY";
@@ -915,29 +928,31 @@ public final class ProcedureCaller {
 
     Map<String, ArrayList<Procedure>> procsMap = new HashMap<>();
 
-    public Map<String, Object> call(
-            String name, int overload, Map<String, Object> args) throws SQLException {
+    private ArrayList<Procedure> getProcs(String name) throws SQLException {
         ArrayList<Procedure> procs = procsMap.get(name);
         if (procs == null) {
             procs = getProcsFromDB(name);
             procsMap.put(name, procs);
         }
+        return procs;
+    }
+
+    public Map<String, Object> call(
+            String name, int overload, Map<String, Object> args) throws SQLException {
+        ArrayList<Procedure> procs = getProcs(name);
+
         if (overload > procs.size()) {
             throw new RuntimeException("the overload does not exist for procedure/function " + name);
         }
-        if (overload<=0) {
+        if (overload <= 0) {
             throw new RuntimeException("overload must greater or equal 1");
         }
-        return call(procs.get(overload-1), args);
+        return call(procs.get(overload - 1), args);
     }
 
     public Map<String, Object> call(
             String name, Map<String, Object> args) throws SQLException {
-        ArrayList<Procedure> procs = procsMap.get(name);
-        if (procs == null) {
-            procs = getProcsFromDB(name);
-            procsMap.put(name, procs);
-        }
+        ArrayList<Procedure> procs = getProcs(name);
         if (procs.size() > 1) {
             throw new RuntimeException("procedure/function is overloaded, supply a overload: " + name);
         } else {
@@ -945,4 +960,111 @@ public final class ProcedureCaller {
         }
     }
 
+    // call the procedure, for each parameter there must be an entry in Object
+    Object callPositional(Procedure p, Object[] args) throws SQLException {
+        if (p.plsqlstatement == null) {
+            p.plsqlstatement = createStatementString(p);
+        }
+        if (this.effectiveNumberTableName == null) {
+            this.effectiveNumberTableName = computeEffectiveName(this.numberTableName);
+        }
+        if (this.effectiveVarchar2TableName == null) {
+            this.effectiveVarchar2TableName = computeEffectiveName(this.varchar2TableName);
+        }
+        if (this.effectiveDateTableName == null) {
+            this.effectiveDateTableName = computeEffectiveName(this.dateTableName);
+        }
+        if (p.arguments.size() > args.length) {
+            throw new RuntimeException("not enough arguments supplied");
+        }
+        if (p.arguments.size() < args.length) {
+            throw new RuntimeException("too many arguments supplied");
+        }
+
+        final ARRAY no;
+        final ARRAY vo;
+        final ARRAY do_;
+        try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
+            ArgArrays aa = new ArgArrays();
+            {
+                int i = 0;
+                for (Argument arg : p.arguments) {
+                    if (!arg.direction.equals("OUT")) {
+                        Object o = args[i];
+                        if (o instanceof Box) {
+                            o = ((Box) o).value;
+                        }
+                        arg.type.fillArgArrays(aa, o);
+                    }
+                    i++;
+                }
+            }
+            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
+            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
+            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
+
+            cstm.registerOutParameter(4, OracleTypes.ARRAY, this.effectiveNumberTableName);
+            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
+            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveDateTableName);
+            cstm.execute();
+            no = cstm.getARRAY(4);
+            vo = cstm.getARRAY(5);
+            do_ = cstm.getARRAY(6);
+        }
+        ResArrays ra = new ResArrays();
+
+        for (Object o : (Object[]) no.getArray()) {
+            ra.decimal.add((BigDecimal) o);
+        }
+
+        for (Object o : (Object[]) vo.getArray()) {
+            ra.varchar2.add((String) o);
+        }
+
+        for (Object o : (Object[]) do_.getArray()) {
+            ra.date.add((Timestamp) o);
+        }
+        Object result;
+        if (p.returnType != null) {
+            result = p.returnType.readFromResArrays(ra);
+        } else {
+            result = null;
+        }
+        {
+            int i = 0;
+            for (Argument arg : p.arguments) {
+                if (!arg.direction.equals("IN")) {
+
+                    if (args[i] != null && args[i] instanceof Box) {
+                        Object o = arg.type.readFromResArrays(ra);
+                        ((Box) args[i]).value = o;
+                    } else {
+                        throw new RuntimeException("need a box for parameter " + arg.name);
+                    }
+                }
+                i++;
+            }
+        }
+        return result;
+    }
+
+    public Object callPositional(String name, Object... args) throws SQLException {
+        ArrayList<Procedure> procs = getProcs(name);
+        if (procs.size() > 1) {
+            throw new RuntimeException("procedure/function is overloaded, supply a overload: " + name);
+        } else {
+            return this.callPositional(procs.get(0), args);
+        }
+    }
+
+    public Object callPositionalO(String name, int overload, Object... args) throws SQLException {
+        ArrayList<Procedure> procs = getProcs(name);
+        if (overload > procs.size()) {
+            throw new RuntimeException("the overload does not exist for procedure/function " + name);
+        }
+        if (overload <= 0) {
+            throw new RuntimeException("overload must greater or equal 1");
+        }
+        return this.callPositional(procs.get(overload - 1), args);
+    }
 }
