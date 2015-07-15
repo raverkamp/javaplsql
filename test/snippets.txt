@@ -132,7 +132,7 @@ procedure p1(x in varchar2,txt out varchar2);
 
 procedure p1(a in number,txt out varchar2);
 
-
+procedure p1(a in varchar2,txt out varchar2);
 
 end;
 
@@ -148,5 +148,9 @@ begin
   txt := '2/'||a;
 end;
 
+procedure p1(a in varchar2,txt out varchar2) is
+begin
+  txt := '3/'||a;
+end;
 
 end;

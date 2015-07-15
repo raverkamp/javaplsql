@@ -15,22 +15,22 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class OverloadTest {
-    
+
     public OverloadTest() {
     }
-    
+
     @BeforeClass
     public static void setUpClass() {
     }
-    
+
     @AfterClass
     public static void tearDownClass() {
     }
-        OracleConnection connection;
-    
+    OracleConnection connection;
+
     @Before
     public void setUp() throws SQLException, IOException {
-         Properties props = TestUtil.getProperties("config1.txt");
+        Properties props = TestUtil.getProperties("config1.txt");
         String user = props.getProperty("user1").toUpperCase();
         connection = (OracleConnection) DriverManager.getConnection(props.getProperty("url"),
                 user, props.getProperty("pw1"));
@@ -43,18 +43,33 @@ public class OverloadTest {
         Ddl.createType(connection, "create type varchar2_array as table of varchar2(32767);");
         Ddl.createType(connection, "create type date_array as table of date;");
     }
-    
+
     @After
     public void tearDown() {
     }
-    
+
     @Test
     public void test1() throws SQLException {
-        Map<String,Object> args = new HashMap<>();
-        args.put("A", 17);
         ProcedureCaller p = new ProcedureCaller(connection);
-        Map<String,Object> res = p.call("pack_overload.p1",1, args);
-        assertEquals("2/17", res.get("TXT"));
+        {
+            Map<String, Object> args = new HashMap<>();
+            args.put("A", 17);
+            Map<String, Object> res = p.call("pack_overload.p1", 2, args);
+            assertEquals("2/17", res.get("TXT"));
+        }
+        {
+            Map<String, Object> args = new HashMap<>();
+            args.put("X", "bla");
+            Map<String, Object> res2 = p.call("pack_overload.p1", 1, args);
+            assertEquals("1/bla", res2.get("TXT"));
+        }
+        
+        {
+            Map<String, Object> args = new HashMap<>();
+            args.put("A", "js");
+            Map<String, Object> res2 = p.call("pack_overload.p1", 3, args);
+            assertEquals("3/js", res2.get("TXT"));
+        }
     }
-    
+
 }

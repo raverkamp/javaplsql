@@ -43,7 +43,7 @@ public final class ProcedureCaller {
             super(bla);
         }
     }
-
+    
     private final OracleConnection connection;
     private String numberTableName = "NUMBER_ARRAY";
     private String varchar2TableName = "VARCHAR2_ARRAY";
@@ -183,7 +183,7 @@ public final class ProcedureCaller {
         if (name.contains(".")) {
             return name;
         }
-        ResolvedName rn = resolveName(connection, name,true);
+        ResolvedName rn = resolveName(connection, name, true);
         return rn.schema + "." + name;
     }
 
@@ -872,7 +872,7 @@ public final class ProcedureCaller {
 
     ArrayList<Procedure> getProcsFromDB(String name) throws SQLException {
 
-        ResolvedName rn = resolveName(this.connection, name,false);
+        ResolvedName rn = resolveName(this.connection, name, false);
         if (rn.dblink != null) {
             throw new RuntimeException("no call over dblink");
         }
@@ -925,12 +925,24 @@ public final class ProcedureCaller {
         if (overload > procs.size()) {
             throw new RuntimeException("the overload does not exist for procedure/function " + name);
         }
-        return call(procs.get(overload), args);
+        if (overload<=0) {
+            throw new RuntimeException("overload must greater or equal 1");
+        }
+        return call(procs.get(overload-1), args);
     }
 
     public Map<String, Object> call(
             String name, Map<String, Object> args) throws SQLException {
-        return this.call(name, 0, args);
+        ArrayList<Procedure> procs = procsMap.get(name);
+        if (procs == null) {
+            procs = getProcsFromDB(name);
+            procsMap.put(name, procs);
+        }
+        if (procs.size() > 1) {
+            throw new RuntimeException("procedure/function is overloaded, supply a overload: " + name);
+        } else {
+            return this.call(procs.get(0), args);
+        }
     }
 
 }

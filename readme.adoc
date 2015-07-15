@@ -22,7 +22,7 @@ The parameter name is the name of the stored procedure, its format follows the u
 convention for oracle procedure names. It is possible use double quoted strings. 
 Synonyms are also resolved. In fact the procedure +dbms_utility.name_resolve+ is 
 used for resolving the procedure name.
-The parameter overload is the number of the overload.
+The parameter overload is the number of the overload, numbering starts with 1.
 The parameter args contains the arguments for the call, the arguments are mapped by name.
 For each IN or IN OUT a value has to be given.
 The return value contains a value for each OUT or in OUT parameter. 
