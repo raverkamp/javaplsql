@@ -134,7 +134,7 @@ public final class ProcedureCaller {
      8 - function (top level)
      9 - package
      */
-    public static class ResolvedName {
+    private static class ResolvedName {
 
         public final String schema;
         public final String part1;
@@ -163,7 +163,7 @@ public final class ProcedureCaller {
         }
     }
 
-    public static ResolvedName resolveName(OracleConnection con, String name, boolean typeContext) throws SQLException {
+    private static ResolvedName resolveName(OracleConnection con, String name, boolean typeContext) throws SQLException {
         try (CallableStatement cstm = con.prepareCall(
                 "begin dbms_utility.name_resolve(?,?,?,?,?,?,?,?);end;")) {
             cstm.setString(1, name);
@@ -201,7 +201,7 @@ public final class ProcedureCaller {
     }
 
     // represents types from PL/SQL
-    static abstract class Type {
+    private static abstract class Type {
 
         public abstract String plsqlName();
 
@@ -233,7 +233,7 @@ public final class ProcedureCaller {
     }
 
     // the PL/SQL standrad types, identfied by their name DATE, NUMBER
-    static class NamedType extends Type {
+    private static class NamedType extends Type {
 
         String name; // number, integer ...
 
@@ -318,7 +318,7 @@ public final class ProcedureCaller {
         }
     }
 
-    static class Varchar2Type extends Type {
+    private static class Varchar2Type extends Type {
 
         String name; // varchar2, number, integer ...
         int size; // 0 if unbounded, i.e. as direct parameter
@@ -364,13 +364,13 @@ public final class ProcedureCaller {
         }
     }
 
-    static class Field {
+    private static class Field {
 
         String name;
         Type type;
     }
 
-    static class RecordType extends Type {
+    private static class RecordType extends Type {
 
         String owner;
         String package_;
@@ -427,7 +427,7 @@ public final class ProcedureCaller {
 
     // type bla is table of blub;
     // no indexed by
-    static class TableType extends Type {
+    private static class TableType extends Type {
 
         String owner;
         String package_;
@@ -467,9 +467,6 @@ public final class ProcedureCaller {
             }
         }
 
-        // used for the index variables
-        static AtomicInteger counter = new AtomicInteger(0);
-
         @Override
         public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
             sb.append("an.extend;\n");
@@ -503,7 +500,7 @@ public final class ProcedureCaller {
     }
 
     // the arguments to a procedure/function
-    static class Argument {
+    private static class Argument {
 
         public String name;
         public String direction;
@@ -511,7 +508,7 @@ public final class ProcedureCaller {
     }
 
     // represents one procedure/function
-    static class Procedure {
+    private static class Procedure {
 
         // not null if function
         Type returnType;
@@ -528,7 +525,7 @@ public final class ProcedureCaller {
     // this class corresponds 1:1 the columns in all_arguments, some columns are lft out
     // when working with the data in all_arguments it is transformed into an ArrayList
     // of this ArgumentsRow
-    static class ArgumentsRow {
+    private static class ArgumentsRow {
 
         String owner;
         String object_name;
@@ -547,7 +544,7 @@ public final class ProcedureCaller {
         int data_length;
     }
 
-    static ArrayDeque<ArgumentsRow> fetchArgumentsRows(ResultSet rs) throws SQLException {
+    private static ArrayDeque<ArgumentsRow> fetchArgumentsRows(ResultSet rs) throws SQLException {
         ArrayDeque<ArgumentsRow> res = new ArrayDeque<>();
         while (rs.next()) {
             ArgumentsRow r = new ArgumentsRow();
@@ -580,7 +577,7 @@ public final class ProcedureCaller {
     // get a Field from Args a and advance the internal position to the position
     // after this Field.
     // due to the recursive structure of PL/SQL types this method is recursive
-    static Field eatArg(ArrayDeque<ArgumentsRow> a) {
+    private static Field eatArg(ArrayDeque<ArgumentsRow> a) {
         ArgumentsRow r = a.getFirst();
         Field f = new Field();
         f.name = r.argument_name;
@@ -631,7 +628,7 @@ public final class ProcedureCaller {
         throw new RuntimeException("unsupported type: " + r.data_type);
     }
 
-    static Procedure eatProc(ArrayDeque<ArgumentsRow> a) {
+    private static Procedure eatProc(ArrayDeque<ArgumentsRow> a) {
         Procedure p = new Procedure();
         ArgumentsRow r = a.getFirst();
         p.package_ = r.package_name;
@@ -662,7 +659,7 @@ public final class ProcedureCaller {
         return p;
     }
 
-    static class ArgArrays {
+    private static class ArgArrays {
 
         ArrayList<BigDecimal> decimal = new ArrayList<>();
         ArrayList<String> varchar2 = new ArrayList<>();
@@ -699,7 +696,7 @@ public final class ProcedureCaller {
         }
     }
 
-    static class ResArrays {
+    private static class ResArrays {
 
         ArrayList<BigDecimal> decimal = new ArrayList<>();
         ArrayList<String> varchar2 = new ArrayList<>();
@@ -731,7 +728,7 @@ public final class ProcedureCaller {
         }
     }
 
-    String createStatementString(Procedure p) {
+    private String createStatementString(Procedure p) {
         StringBuilder sb = new StringBuilder();
         sb.append("declare\n");
         sb.append("an " + this.numberTableName + ";\n");
@@ -869,99 +866,8 @@ public final class ProcedureCaller {
         return res;
     }
 
-    static String sql1 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,\n"
-            + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,\n"
-            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE,data_length\n"
-            + " from all_arguments \n"
-            + " where owner = ? and package_name = ? and object_name = ?\n"
-            + " order by owner,package_name,object_name,overload,sequence";
-
-    static String sql2 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,"
-            + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,"
-            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE,data_length\n"
-            + " from all_arguments \n"
-            + " where object_id = ? \n"
-            + " order by owner,package_name,object_name,overload,sequence";
-
-    ArrayList<Procedure> getProcsFromDB(String name) throws SQLException {
-
-        ResolvedName rn = resolveName(this.connection, name, false);
-        if (rn.dblink != null) {
-            throw new RuntimeException("no call over dblink");
-        }
-        ArrayDeque<ArgumentsRow> argument_rows;
-        PreparedStatement pstm;
-
-        if (rn.part1_type == 7 || rn.part1_type == 8) {
-            // this a global procedure or function
-            pstm = this.connection.prepareCall(sql2);
-            pstm.setBigDecimal(1, new BigDecimal(rn.object_number));
-        } else if (rn.part1_type == 9) {
-            if (rn.part2 == null) {
-                throw new RuntimeException("only package given: " + name);
-            }
-            // this is procedure or function in a package
-            pstm = this.connection.prepareCall(sql1);
-            pstm.setString(1, rn.schema);
-            pstm.setString(2, rn.part1);
-            pstm.setString(3, rn.part2);
-        } else {
-            throw new RuntimeException("this is not a gobal procedure/function, "
-                    + "nor a procedure/function in a package: " + name);
-        }
-        try (ResultSet rs = pstm.executeQuery()) {
-            argument_rows = fetchArgumentsRows(rs);
-            rs.close();
-        }
-        pstm.close();
-        if (argument_rows.isEmpty()) {
-            throw new RuntimeException("procedure in package does not exist or object is not valid: " + name);
-        }
-        ArrayList<Procedure> procs = new ArrayList<>();
-        while (!argument_rows.isEmpty()) {
-            Procedure p = eatProc(argument_rows);
-            p.original_name = name;
-            procs.add(p);
-        }
-        return procs;
-    }
-
-    Map<String, ArrayList<Procedure>> procsMap = new HashMap<>();
-
-    private ArrayList<Procedure> getProcs(String name) throws SQLException {
-        ArrayList<Procedure> procs = procsMap.get(name);
-        if (procs == null) {
-            procs = getProcsFromDB(name);
-            procsMap.put(name, procs);
-        }
-        return procs;
-    }
-
-    public Map<String, Object> call(
-            String name, int overload, Map<String, Object> args) throws SQLException {
-        ArrayList<Procedure> procs = getProcs(name);
-
-        if (overload > procs.size()) {
-            throw new RuntimeException("the overload does not exist for procedure/function " + name);
-        }
-        if (overload <= 0) {
-            throw new RuntimeException("overload must greater or equal 1");
-        }
-        return call(procs.get(overload - 1), args);
-    }
-
-    public Map<String, Object> call(
-            String name, Map<String, Object> args) throws SQLException {
-        ArrayList<Procedure> procs = getProcs(name);
-        if (procs.size() > 1) {
-            throw new RuntimeException("procedure/function is overloaded, supply a overload: " + name);
-        } else {
-            return this.call(procs.get(0), args);
-        }
-    }
-
     // call the procedure, for each parameter there must be an entry in Object
-    Object callPositional(Procedure p, Object[] args) throws SQLException {
+    private Object callPositional(Procedure p, Object[] args) throws SQLException {
         if (p.plsqlstatement == null) {
             p.plsqlstatement = createStatementString(p);
         }
@@ -1046,6 +952,97 @@ public final class ProcedureCaller {
             }
         }
         return result;
+    }
+
+    private static String sql1 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,\n"
+            + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,\n"
+            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE,data_length\n"
+            + " from all_arguments \n"
+            + " where owner = ? and package_name = ? and object_name = ?\n"
+            + " order by owner,package_name,object_name,overload,sequence";
+
+    private static String sql2 = "select OWNER,OBJECT_NAME,PACKAGE_NAME,ARGUMENT_NAME,"
+            + "POSITION,SEQUENCE,DATA_LEVEL,DATA_TYPE,"
+            + " OVERLOAD, IN_OUT, TYPE_OWNER, TYPE_NAME, TYPE_SUBNAME, PLS_TYPE,data_length\n"
+            + " from all_arguments \n"
+            + " where object_id = ? \n"
+            + " order by owner,package_name,object_name,overload,sequence";
+
+    private ArrayList<Procedure> getProcsFromDB(String name) throws SQLException {
+
+        ResolvedName rn = resolveName(this.connection, name, false);
+        if (rn.dblink != null) {
+            throw new RuntimeException("no call over dblink");
+        }
+        ArrayDeque<ArgumentsRow> argument_rows;
+        PreparedStatement pstm;
+
+        if (rn.part1_type == 7 || rn.part1_type == 8) {
+            // this a global procedure or function
+            pstm = this.connection.prepareCall(sql2);
+            pstm.setBigDecimal(1, new BigDecimal(rn.object_number));
+        } else if (rn.part1_type == 9) {
+            if (rn.part2 == null) {
+                throw new RuntimeException("only package given: " + name);
+            }
+            // this is procedure or function in a package
+            pstm = this.connection.prepareCall(sql1);
+            pstm.setString(1, rn.schema);
+            pstm.setString(2, rn.part1);
+            pstm.setString(3, rn.part2);
+        } else {
+            throw new RuntimeException("this is not a gobal procedure/function, "
+                    + "nor a procedure/function in a package: " + name);
+        }
+        try (ResultSet rs = pstm.executeQuery()) {
+            argument_rows = fetchArgumentsRows(rs);
+            rs.close();
+        }
+        pstm.close();
+        if (argument_rows.isEmpty()) {
+            throw new RuntimeException("procedure in package does not exist or object is not valid: " + name);
+        }
+        ArrayList<Procedure> procs = new ArrayList<>();
+        while (!argument_rows.isEmpty()) {
+            Procedure p = eatProc(argument_rows);
+            p.original_name = name;
+            procs.add(p);
+        }
+        return procs;
+    }
+
+    private Map<String, ArrayList<Procedure>> procsMap = new HashMap<>();
+
+    private ArrayList<Procedure> getProcs(String name) throws SQLException {
+        ArrayList<Procedure> procs = procsMap.get(name);
+        if (procs == null) {
+            procs = getProcsFromDB(name);
+            procsMap.put(name, procs);
+        }
+        return procs;
+    }
+
+    public Map<String, Object> call(
+            String name, int overload, Map<String, Object> args) throws SQLException {
+        ArrayList<Procedure> procs = getProcs(name);
+
+        if (overload > procs.size()) {
+            throw new RuntimeException("the overload does not exist for procedure/function " + name);
+        }
+        if (overload <= 0) {
+            throw new RuntimeException("overload must greater or equal 1");
+        }
+        return call(procs.get(overload - 1), args);
+    }
+
+    public Map<String, Object> call(
+            String name, Map<String, Object> args) throws SQLException {
+        ArrayList<Procedure> procs = getProcs(name);
+        if (procs.size() > 1) {
+            throw new RuntimeException("procedure/function is overloaded, supply a overload: " + name);
+        } else {
+            return this.call(procs.get(0), args);
+        }
     }
 
     public Object callPositional(String name, Object... args) throws SQLException {
