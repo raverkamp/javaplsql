@@ -134,17 +134,13 @@ and copy the Java file ProcedureCaller into your project
 (into what ever package you like).
 
 == Things to do
-* refactor meta data, do dispatch for different types via methods
 * add support for raw
-* cache the meta data
-* add support for overloaded functions 
 * add support for ref cursors
 * add support for index by tables
 * convert "java records" (class constining only of public fields) to oracle records
   the other way around?, type map for return records?
 * try to separate conversion exeptions (our fault) from exceptions in the procedure
   wrap the actual procedure call with an eception handler
-* tests for behaviour with different users/schemas ans synonyms etc.
 * handling of date-like typs, Timestamp, java.sql.Date. java.util.Date
 * type checks in java, if string is too long for record field, the exception
 should be thrown in Java.
