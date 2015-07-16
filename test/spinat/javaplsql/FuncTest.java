@@ -64,8 +64,7 @@ public class FuncTest {
         System.out.println(res);
         assertTrue(res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"));
     }
-    
-    
+
     @Test
     public void t1p() throws SQLException {
         HashMap<String, Object> ar = new HashMap<>();
@@ -76,8 +75,8 @@ public class FuncTest {
         Box<BigDecimal> xo = new Box<>();
         Box<String> yo = new Box<>();
         Box<java.sql.Timestamp> zo = new Box<>();
-        
-        p.callPositional("P1.P",12,"x",new Date(), xo,yo,zo);
+
+        p.callPositional("P1.P", 12, "x", new Date(), xo, yo, zo);
         assertTrue(xo.value.equals(new BigDecimal(13)) && yo.value.equals("xx"));
     }
 
@@ -94,16 +93,16 @@ public class FuncTest {
         Map<String, Object> m = (Map<String, Object>) res.get("B");
         assertTrue(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"));
     }
-    
-     @Test
+
+    @Test
     public void test2p() throws SQLException {
         Map<String, Object> a = new HashMap();
         a.put("X", 12);
         a.put("Y", "x");
         a.put("Z", new Date());
         ProcedureCaller p = new ProcedureCaller(connection);
-        Box<Map<String,Object>> b = new Box<>();
-        p.callPositional("P1.P2", a,b);
+        Box<Map<String, Object>> b = new Box<>();
+        p.callPositional("P1.P2", a, b);
         Map<String, Object> m = b.value;
         assertTrue(m.get("X").equals(new BigDecimal(13)) && m.get("Y").equals("xx"));
     }
@@ -163,7 +162,6 @@ public class FuncTest {
                         && m1.get("Z").equals(m2.get("Z")));
             }
         }
-
     }
 
     @Test
@@ -179,7 +177,7 @@ public class FuncTest {
         Map<String, Object> m = (Map<String, Object>) res.get("B");
         assertTrue(m.get("X") == null && m.get("Y") == null);
     }
-    
+
     @Test
     public void test5p() throws SQLException {
         Map<String, Object> a = new HashMap();
@@ -187,7 +185,7 @@ public class FuncTest {
         a.put("Y", null);
         a.put("Z", null);
         Box<Map> b = new Box<>();
-        new ProcedureCaller(connection).callPositional("P1.P2", a,b);
+        new ProcedureCaller(connection).callPositional("P1.P2", a, b);
         Map<String, Object> m = (Map<String, Object>) b.value;
         assertTrue(m.get("X") == null && m.get("Y") == null);
     }
@@ -272,30 +270,45 @@ public class FuncTest {
             BigDecimal y2 = (BigDecimal) m.get("Y2");
             assertTrue(y2.equals(BigDecimal.valueOf(29)));
         }
-
     }
-    
+
+    // procedure p5 takes a table is argument and return it in its
+    // out argument
+    @Test
+    public void testTableNull() throws SQLException {
+        Box<Object> b = new Box<>();
+        ProcedureCaller p = new ProcedureCaller(connection);
+        p.callPositional("p1.p5", null, b);
+        assertNull(b.value);
+
+        ArrayList<String> l = new ArrayList<>();
+        p.callPositional("p1.p5", l, b);
+        assertNotNull(b.value);
+        assertEquals(0, ((ArrayList) b.value).size());
+    }
+
+    // test various methods to write a strored procedure
     @Test
     public void testName1() throws SQLException {
         Map<String, Object> a = new HashMap<>();
         ProcedureCaller p = new ProcedureCaller(connection);
-        Map<String,Object> res;
-        res = p.call("p1.no_args",a);
-        res = p.call("\"P1\".no_args",a);
-        res = p.call("\"P1\".\"NO_ARGS\"",a);
-        res = p.call("p1.\"NO_ARGS\"",a);
-        res = p.call("p1.\"NO_ARGS\"",a);
+        Map<String, Object> res;
+        res = p.call("p1.no_args", a);
+        res = p.call("\"P1\".no_args", a);
+        res = p.call("\"P1\".\"NO_ARGS\"", a);
+        res = p.call("p1.\"NO_ARGS\"", a);
+        res = p.call("p1.\"NO_ARGS\"", a);
     }
-    
+
     @Test
     public void testName2() throws SQLException {
         Map<String, Object> a = new HashMap<>();
         ProcedureCaller p = new ProcedureCaller(connection);
-        Map<String,Object> res;
-        Exception ex= null;
+        Map<String, Object> res;
+        Exception ex = null;
         try {
-        res = p.call("p1.this_proc_does_not_exist",a);
-        } catch(Exception exe) {
+            res = p.call("p1.this_proc_does_not_exist", a);
+        } catch (Exception exe) {
             ex = exe;
         }
         assertTrue(ex instanceof RuntimeException);

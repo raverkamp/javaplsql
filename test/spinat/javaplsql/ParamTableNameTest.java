@@ -17,19 +17,19 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class ParamTableNameTest {
-    
+
     public ParamTableNameTest() {
     }
-    
+
     @BeforeClass
     public static void setUpClass() {
     }
-    
+
     @AfterClass
     public static void tearDownClass() {
     }
     OracleConnection connection;
-    
+
     @Before
     public void setUp() throws SQLException, IOException {
         Properties props = TestUtil.getProperties("config1.txt");
@@ -37,15 +37,15 @@ public class ParamTableNameTest {
         connection = (OracleConnection) DriverManager.getConnection(props.getProperty("url"),
                 user, props.getProperty("pw1"));
         HashMap<String, String> a = TestUtil.loadSnippets("snippets.txt");
-        
+
         Ddl.call(connection, a.get("p1_spec"));
         Ddl.call(connection, a.get("p1_body"));
     }
-    
+
     @After
     public void tearDown() {
     }
-    
+
     void testx(int i) throws SQLException {
         String na = "na" + i;
         String va = "va" + i;
@@ -57,7 +57,7 @@ public class ParamTableNameTest {
         p.setNumberTableName(na);
         p.setVarchar2TableName(va);
         p.setDateTableName(da);
-         HashMap<String, Object> ar = new HashMap<>();
+        HashMap<String, Object> ar = new HashMap<>();
         ar.put("XI", 12);
         ar.put("YI", "x");
         ar.put("ZI", new Date());
@@ -65,12 +65,12 @@ public class ParamTableNameTest {
         System.out.println(res);
         assertTrue(res.get("XO").equals(new BigDecimal(13)) && res.get("YO").equals("xx"));
     }
-    
+
     @Test
     public void test1() throws SQLException {
-        for(int i =0;i<2;i++) {
+        for (int i = 0; i < 2; i++) {
             testx(i);
-        }      
+        }
     }
-    
+
 }

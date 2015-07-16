@@ -64,7 +64,7 @@ public class OverloadTest {
             Map<String, Object> res2 = p.call("pack_overload.p1", 1, args);
             assertEquals("1/bla", res2.get("TXT"));
         }
-        
+
         {
             Map<String, Object> args = new HashMap<>();
             args.put("A", "js");
@@ -72,13 +72,13 @@ public class OverloadTest {
             assertEquals("3/js", res2.get("TXT"));
         }
     }
-    
-     @Test
+
+    @Test
     public void test1p() throws SQLException {
         ProcedureCaller p = new ProcedureCaller(connection);
         {
             Box<String> b = new Box<>();
-            p.callPositionalO("pack_overload.p1", 2, 17,b);
+            p.callPositionalO("pack_overload.p1", 2, 17, b);
             assertEquals("2/17", b.value);
         }
         {
@@ -87,7 +87,7 @@ public class OverloadTest {
             Map<String, Object> res2 = p.call("pack_overload.p1", 1, args);
             assertEquals("1/bla", res2.get("TXT"));
         }
-        
+
         {
             Map<String, Object> args = new HashMap<>();
             args.put("A", "js");
