@@ -64,6 +64,7 @@ public void setDateTableName(String dateTableName)
 * date -> java.sql.TimeStamp
 * varchar2 -> String
 * boolean -> Boolean
+* sys_refcursor -> ArrayList of Map<String,Object>
 
 Object types, clob, blob, raw, refcursors and "index by table" are currently not supported.
 

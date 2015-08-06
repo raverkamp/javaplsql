@@ -589,25 +589,25 @@ public final class ProcedureCaller {
             sb.append("end if;");
             sb.append("av.extend;av(av.last):=substr(t,i,1);\n");
             sb.append(" end loop;\n");
-            sb.append(" loop\n"
-                    + "      x := DBMS_SQL.FETCH_ROWS(h);\n"
-                    + "      exit when x = 0;\n"
-                    + "      an.extend; an(an.last):= 1\n;"
-                    + "      for i in 1 .. col_cnt loop\n"
-                    + "        case substr(t,i,1) \n"
-                    + "         when 'D' then\n"
-                    + "          DBMS_SQL.COLUMN_VALUE(h, i, dat);\n"
-                    + "          ad.extend; ad(ad.last) := dat;\n"
-                    + "        when 'N' then\n"
-                    + "          DBMS_SQL.COLUMN_VALUE(h, i, num);\n"
-                    + "          an.extend; an(an.last) := num;\n"
-                     + "        when 'V' then\n"
-                    + "          DBMS_SQL.COLUMN_VALUE(h, i, varc);\n"
-                    + "          av.extend; av(av.last) := varc;\n"
-                    + "         else raise_application_error(-20000,'BUG: unknown internal type code: '||t);\n"
-                    + "         end case;\n"
-                    + "      end loop;\n"
-                    + "    end loop;\n");
+            sb.append(" loop\n");
+            sb.append("      x := DBMS_SQL.FETCH_ROWS(h);\n");
+            sb.append("      exit when x = 0;\n");
+            sb.append("      an.extend; an(an.last):= 1\n;");
+            sb.append("      for i in 1 .. col_cnt loop\n");
+            sb.append("        case substr(t,i,1) \n");
+            sb.append("         when 'D' then\n");
+            sb.append("          DBMS_SQL.COLUMN_VALUE(h, i, dat);\n");
+            sb.append("          ad.extend; ad(ad.last) := dat;\n");
+            sb.append("        when 'N' then\n");
+            sb.append("          DBMS_SQL.COLUMN_VALUE(h, i, num);\n");
+            sb.append("          an.extend; an(an.last) := num;\n");
+            sb.append("        when 'V' then\n");
+            sb.append("          DBMS_SQL.COLUMN_VALUE(h, i, varc);\n");
+            sb.append("          av.extend; av(av.last) := varc;\n");
+            sb.append("         else raise_application_error(-20000,'BUG: unknown internal type code: '||t);\n");
+            sb.append("         end case;\n");
+            sb.append("      end loop;\n");
+            sb.append("    end loop;\n");
             sb.append("      an.extend; an(an.last):= 0\n;");
             sb.append("end;");
 
@@ -916,7 +916,7 @@ public final class ProcedureCaller {
         sb.append("?:= ad;\n");
         sb.append("dbms_output.put_line('f '||to_char(sysdate,'mi:ss'));\n");
         sb.append("end;\n");
-        System.out.println(sb.toString());
+        // System.out.println(sb.toString());
         return sb.toString();
     }
 

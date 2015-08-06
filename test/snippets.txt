@@ -34,7 +34,13 @@ procedure raise_error(errnum integer,txt varchar2);
 
 procedure no_args;
 
-procedure pcursor1 (n integer,c out sys_refcursor);
+procedure pcursor1 (n number,v varchar2,d date,c out sys_refcursor);
+
+type refcursor_rec is record (n number,v varchar2(200),d date);
+
+TYPE return_cur IS REF CURSOR RETURN refcursor_rec;
+
+procedure pcursor2(n number,v varchar2,d date,c out return_cur);
 
 end;
 ## p1_body
@@ -120,13 +126,18 @@ begin
  null;
 end;
 
-procedure pcursor1 (n integer,c out sys_refcursor) is
-
+procedure pcursor1 (n number,v varchar2,d date,c out sys_refcursor) is
 begin
-  open c for select owner,table_name,column_name 
-  from all_tab_columns c where rownum <= n;
+  open c for select 'a' as a,1 as b, date '2001-1-5' as c from dual
+                  union all select v,n,d from dual;
 end;
 
+procedure pcursor2(n number,v varchar2,d date,c out return_cur) is
+
+begin
+  open c for select 1 as n,'a' as v, date '2001-1-5' as d from dual
+                  union all select n,v,d from dual;
+end;
 end;
 ## proc1
 create or replace procedure proc1( x integer,y varchar2,z date) as

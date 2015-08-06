@@ -311,6 +311,7 @@ public class FuncTest {
         } catch (Exception exe) {
             ex = exe;
         }
+        assertNotNull(ex);
         assertTrue(ex instanceof RuntimeException);
         assertTrue(ex.getMessage().contains("procedure in package does not exist or object is not valid"));
     }
@@ -319,9 +320,27 @@ public class FuncTest {
     public void TestSysRefCursor() throws SQLException {
          ProcedureCaller p = new ProcedureCaller(connection);
          Box<Object> b = new Box<>();
-         p.callPositional("p1.pcursor1", 10,b);
+         Date dat = new Date(2001,12,1);
+         p.callPositional("p1.pcursor1", 17,"xyz",dat,b);
          ArrayList<Map<String,Object>> l = (ArrayList<Map<String,Object>>) b.value;
-         assertTrue(l.size()==10);
-         System.out.println(l);
+         assertTrue(l.size()==2);
+         Map<String,Object> r2 = l.get(1);
+         assertEquals(r2.get("A"), "xyz");
+         assertEquals(((BigDecimal)r2.get("B")).intValue(), 17);
+         assertEquals(r2.get("C"), dat);
+    }
+    
+    @Test
+    public void TestRefCursor() throws SQLException {
+         ProcedureCaller p = new ProcedureCaller(connection);
+         Box<Object> b = new Box<>();
+         Date dat = new Date(2001,12,1);
+         p.callPositional("p1.pcursor2", 17,"xyz",dat,b);
+         ArrayList<Map<String,Object>> l = (ArrayList<Map<String,Object>>) b.value;
+         assertTrue(l.size()==2);
+         Map<String,Object> r2 = l.get(1);
+         assertEquals(r2.get("A"), "xyz");
+         assertEquals(((BigDecimal)r2.get("B")).intValue(), 17);
+         assertEquals(r2.get("C"), dat);
     }
 }
