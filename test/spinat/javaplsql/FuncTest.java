@@ -314,4 +314,14 @@ public class FuncTest {
         assertTrue(ex instanceof RuntimeException);
         assertTrue(ex.getMessage().contains("procedure in package does not exist or object is not valid"));
     }
+    
+    @Test
+    public void TestSysRefCursor() throws SQLException {
+         ProcedureCaller p = new ProcedureCaller(connection);
+         Box<Object> b = new Box<>();
+         p.callPositional("p1.pcursor1", 10,b);
+         ArrayList<Map<String,Object>> l = (ArrayList<Map<String,Object>>) b.value;
+         assertTrue(l.size()==10);
+         System.out.println(l);
+    }
 }

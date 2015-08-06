@@ -34,6 +34,8 @@ procedure raise_error(errnum integer,txt varchar2);
 
 procedure no_args;
 
+procedure pcursor1 (n integer,c out sys_refcursor);
+
 end;
 ## p1_body
 create or replace package body p1 as
@@ -116,6 +118,13 @@ end;
 procedure no_args is
 begin
  null;
+end;
+
+procedure pcursor1 (n integer,c out sys_refcursor) is
+
+begin
+  open c for select owner,table_name,column_name 
+  from all_tab_columns c where rownum <= n;
 end;
 
 end;

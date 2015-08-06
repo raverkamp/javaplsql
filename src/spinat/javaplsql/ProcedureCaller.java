@@ -499,6 +499,121 @@ public final class ProcedureCaller {
         }
     }
 
+    private static class SysRefCursorType extends Type {
+
+        // tricky : unlike for tables we do not know the size in advance
+        // and we do not know the columns
+        // thus when retrieving write the columns (name,type)
+        //   and then write the rows
+        // for a row write 1 into number and then the row data
+        // if there is no more data then write 0 into number
+        // support for clobs, cursor in result set?
+        // maybe a procedure whcih reads out the data and returns 
+        // a handle and an array (or just a string?) with the columns types for readput
+        @Override
+        public String plsqlName() {
+            return "sys_refcursor";
+        }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            throw new Error("sys_refcursor may not be an \"IN\" or \"IN OUT\" parameter");
+        }
+
+        @Override
+        public Object readFromResArrays(ResArrays a) {
+            int colcount = a.readBigDecimal().intValue();
+            ArrayList<String> colnames = new ArrayList<>();
+            ArrayList<String> coltypes = new ArrayList<>();
+            for (int i = 0; i < colcount; i++) {
+                colnames.add(a.readString());
+                coltypes.add(a.readString());
+            }
+            ArrayList<HashMap<String, Object>> l = new ArrayList<>();
+            while (true) {
+                if (a.readBigDecimal().intValue() == 0) {
+                    break;
+                }
+                HashMap<String, Object> m = new HashMap<>();
+                for (int i = 0; i < colcount; i++) {
+                    String t = coltypes.get(i);
+                    final Object o;
+                    if (t.equals("N")) {
+                        o = a.readBigDecimal();
+                    } else if (t.equals("V")) {
+                        o = a.readString();
+                    } else if (t.equals("D")) {
+                        o = a.readDate();
+                    } else {
+                        throw new Error("unknwon column type: " + t);
+                    }
+                    m.put(colnames.get(i), o);
+                }
+                l.add(m);
+            }
+            return l;
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
+            throw new Error("sys_refcursor may not be an \"IN\" or \"IN OUT\" parameter");
+        }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
+            sb.append("declare h integer;\n");
+            sb.append(" t varchar2(100);\n");
+            sb.append(" rec_tab   DBMS_SQL.DESC_TAB;\n");
+            sb.append(" rec       DBMS_SQL.DESC_REC;\n");
+            sb.append(" x number;\n");
+            sb.append("num number;\n");
+            sb.append("dat date;\n");
+            sb.append("varc varchar2(4000);\n");
+            sb.append(" col_cnt integer;\n");
+            sb.append("begin\n");
+            sb.append(" h := DBMS_SQL.TO_CURSOR_NUMBER (" + source + ");\n");
+            sb.append(" DBMS_SQL.DESCRIBE_COLUMNS(h, col_cnt, rec_tab);\n");
+            sb.append(" an.extend; an(an.last):= col_cnt;\n");
+            sb.append(" for i in 1 .. rec_tab.last loop\n");
+            sb.append("  rec := rec_tab(i);\n");
+            sb.append("  av.extend; av(av.last):= rec.col_name;\n");
+            sb.append("if rec.col_type = dbms_types.TYPECODE_DATE then\n");
+            sb.append("        dbms_sql.define_column(h, i, dat);\n");
+            sb.append(" t:=t||'D';\n");
+            sb.append("elsif rec.col_type = dbms_types.TYPECODE_NUMBER then\n");
+            sb.append("        dbms_sql.define_column(h, i, num);\n");
+            sb.append(" t:=t||'N';\n");
+            sb.append("else\n");
+            sb.append("        dbms_sql.define_column(h, i, varc, 4000);\n");
+            sb.append(" t:=t||'V';\n");
+            sb.append("end if;");
+            sb.append("av.extend;av(av.last):=substr(t,i,1);\n");
+            sb.append(" end loop;\n");
+            sb.append(" loop\n"
+                    + "      x := DBMS_SQL.FETCH_ROWS(h);\n"
+                    + "      exit when x = 0;\n"
+                    + "      an.extend; an(an.last):= 1\n;"
+                    + "      for i in 1 .. col_cnt loop\n"
+                    + "        case substr(t,i,1) \n"
+                    + "         when 'D' then\n"
+                    + "          DBMS_SQL.COLUMN_VALUE(h, i, dat);\n"
+                    + "          ad.extend; ad(ad.last) := dat;\n"
+                    + "        when 'N' then\n"
+                    + "          DBMS_SQL.COLUMN_VALUE(h, i, num);\n"
+                    + "          an.extend; an(an.last) := num;\n"
+                     + "        when 'V' then\n"
+                    + "          DBMS_SQL.COLUMN_VALUE(h, i, varc);\n"
+                    + "          av.extend; av(av.last) := varc;\n"
+                    + "         else raise_application_error(-20000,'BUG: unknown internal type code: '||t);\n"
+                    + "         end case;\n"
+                    + "      end loop;\n"
+                    + "    end loop;\n");
+            sb.append("      an.extend; an(an.last):= 0\n;");
+            sb.append("end;");
+
+        }
+    }
+
     // the arguments to a procedure/function
     private static class Argument {
 
@@ -623,6 +738,15 @@ public final class ProcedureCaller {
                 t.fields.add(eatArg(a));
             }
             f.type = t;
+            return f;
+        }
+        if (r.data_type.equals("REF CURSOR")) {
+            SysRefCursorType t = new SysRefCursorType();
+            f.type = t;
+            a.pop();
+            if (!a.isEmpty() && a.getFirst().data_level>0) {
+                throw new RuntimeException("typed ref cursor not supported");
+            }
             return f;
         }
         throw new RuntimeException("unsupported type: " + r.data_type);
@@ -792,6 +916,7 @@ public final class ProcedureCaller {
         sb.append("?:= ad;\n");
         sb.append("dbms_output.put_line('f '||to_char(sysdate,'mi:ss'));\n");
         sb.append("end;\n");
+        System.out.println(sb.toString());
         return sb.toString();
     }
 
