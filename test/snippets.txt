@@ -42,6 +42,10 @@ TYPE return_cur IS REF CURSOR RETURN refcursor_rec;
 
 procedure pcursor2(n number,v varchar2,d date,c out return_cur);
 
+type return_cur2 is ref cursor return all_tables%rowtype;
+
+procedure pcursor3(c out return_cur2);
+
 end;
 ## p1_body
 create or replace package body p1 as
@@ -138,6 +142,12 @@ begin
   open c for select 1 as n,'a' as v, date '2001-1-5' as d from dual
                   union all select n,v,d from dual;
 end;
+
+procedure pcursor3(c out return_cur2) is
+begin
+  open c for select * from all_tables where rownum <100;
+end;
+
 end;
 ## proc1
 create or replace procedure proc1( x integer,y varchar2,z date) as

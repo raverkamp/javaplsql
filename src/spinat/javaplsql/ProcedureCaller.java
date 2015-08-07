@@ -614,6 +614,59 @@ public final class ProcedureCaller {
         }
     }
 
+    private static class TypedRefCursorType extends Type {
+
+        String owner;
+        String package_;
+        String name;
+        RecordType rectype;
+
+        @Override
+        public String plsqlName() {
+            return "sys_refcursor";
+        }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            throw new Error("ref cursor may not be an \"IN\" or \"IN OUT\" parameter");
+        }
+
+        @Override
+        public Object readFromResArrays(ResArrays a) {
+            ArrayList<HashMap<String, Object>> l = new ArrayList<>();
+            while (true) {
+                if (a.readBigDecimal().intValue() == 0) {
+                    break;
+                }
+                HashMap<String, Object> m = (HashMap<String, Object>) rectype.readFromResArrays(a);
+                l.add(m);
+            }
+            return l;
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
+            throw new Error("ref cursor may not be an \"IN\" or \"IN OUT\" parameter");
+        }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
+            sb.append("declare r " + rectype.plsqlName() + ";\n");
+            sb.append("x integer;\n");
+            sb.append("begin\n");
+            sb.append("loop\n");
+            sb.append(" fetch " + source + " into r;\n");
+            sb.append("if " + source + "%notfound then\n");
+            sb.append("  exit;\n");
+            sb.append("end if;\n");
+            sb.append("an.extend;an(an.last) := 1;\n");
+            rectype.genWriteThing(sb, counter, "r");
+            sb.append("end loop;\n");
+            sb.append("an.extend;an(an.last) := 0;\n");
+            sb.append("end;\n");
+        }
+    }
+
     // the arguments to a procedure/function
     private static class Argument {
 
@@ -740,14 +793,30 @@ public final class ProcedureCaller {
             f.type = t;
             return f;
         }
+        // as of Oracle 11.2.0.2.0 ref cursors can not be part of records or be
+        // part of a table
         if (r.data_type.equals("REF CURSOR")) {
-            SysRefCursorType t = new SysRefCursorType();
-            f.type = t;
             a.pop();
-            if (!a.isEmpty() && a.getFirst().data_level>0) {
-                throw new RuntimeException("typed ref cursor not supported");
+            if (a.isEmpty() || a.getFirst().data_level == 0) {
+                SysRefCursorType t = new SysRefCursorType();
+                f.type = t;
+                return f;
             }
-            return f;
+            TypedRefCursorType t = new TypedRefCursorType();
+             t.owner = r.type_owner;
+             t.package_ = r.type_name;
+             t.name = r.type_subname;
+            Field f2 = eatArg(a);
+            if (f2.type instanceof RecordType) {
+                t.rectype = (RecordType) f2.type;
+                f.type = t;
+                if (t.rectype.name == null) {
+                    throw new RuntimeException("anonymous record types (%rowtype) are not supported");
+                }
+                return f;
+            } else {
+                throw new RuntimeException("unknown record type for cursor");
+            }
         }
         throw new RuntimeException("unsupported type: " + r.data_type);
     }
@@ -916,7 +985,7 @@ public final class ProcedureCaller {
         sb.append("?:= ad;\n");
         sb.append("dbms_output.put_line('f '||to_char(sysdate,'mi:ss'));\n");
         sb.append("end;\n");
-        // System.out.println(sb.toString());
+        System.out.println(sb.toString());
         return sb.toString();
     }
 

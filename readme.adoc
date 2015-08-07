@@ -65,8 +65,10 @@ public void setDateTableName(String dateTableName)
 * varchar2 -> String
 * boolean -> Boolean
 * sys_refcursor -> ArrayList of Map<String,Object>
+* typed refcursor -> ArrayList of Map<String,Object>
 
-Object types, clob, blob, raw, refcursors and "index by table" are currently not supported.
+Object types, clob, blob, raw and "index by table" are currently not supported. 
+All records must have a named type, i.e. not defined as "%rowtype".
 
 == Example
 given a package:
@@ -136,7 +138,6 @@ and copy the Java file ProcedureCaller into your project
 
 == Things to do
 * add support for raw
-* add support for ref cursors
 * add support for index by tables
 * convert "java records" (class constining only of public fields) to oracle records
   the other way around?, type map for return records?

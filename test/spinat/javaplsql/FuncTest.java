@@ -339,8 +339,22 @@ public class FuncTest {
          ArrayList<Map<String,Object>> l = (ArrayList<Map<String,Object>>) b.value;
          assertTrue(l.size()==2);
          Map<String,Object> r2 = l.get(1);
-         assertEquals(r2.get("A"), "xyz");
-         assertEquals(((BigDecimal)r2.get("B")).intValue(), 17);
-         assertEquals(r2.get("C"), dat);
+         assertEquals(r2.get("V"), "xyz");
+         assertEquals(((BigDecimal)r2.get("N")).intValue(), 17);
+         assertEquals(r2.get("D"), dat);
+    }
+    
+    @Test
+    public void TestRefCursor3() throws SQLException {
+         ProcedureCaller p = new ProcedureCaller(connection);
+         Box<Object> b = new Box<>();
+           Exception ex = null;
+        try {
+         p.callPositional("p1.pcursor3",b);
+        } catch(Exception exe) {
+            ex=exe;
+        }
+        assertTrue(ex!=null && ex instanceof RuntimeException);
+        assertTrue(ex.getMessage().contains("%rowtype"));
     }
 }
