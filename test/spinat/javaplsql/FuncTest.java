@@ -9,6 +9,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TreeMap;
 import oracle.jdbc.OracleConnection;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -315,46 +316,75 @@ public class FuncTest {
         assertTrue(ex instanceof RuntimeException);
         assertTrue(ex.getMessage().contains("procedure in package does not exist or object is not valid"));
     }
-    
+
     @Test
     public void TestSysRefCursor() throws SQLException {
-         ProcedureCaller p = new ProcedureCaller(connection);
-         Box<Object> b = new Box<>();
-         Date dat = new Date(2001,12,1);
-         p.callPositional("p1.pcursor1", 17,"xyz",dat,b);
-         ArrayList<Map<String,Object>> l = (ArrayList<Map<String,Object>>) b.value;
-         assertTrue(l.size()==2);
-         Map<String,Object> r2 = l.get(1);
-         assertEquals(r2.get("A"), "xyz");
-         assertEquals(((BigDecimal)r2.get("B")).intValue(), 17);
-         assertEquals(r2.get("C"), dat);
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<Object> b = new Box<>();
+        Date dat = new Date(2001, 12, 1);
+        p.callPositional("p1.pcursor1", 17, "xyz", dat, b);
+        ArrayList<Map<String, Object>> l = (ArrayList<Map<String, Object>>) b.value;
+        assertTrue(l.size() == 2);
+        Map<String, Object> r2 = l.get(1);
+        assertEquals(r2.get("A"), "xyz");
+        assertEquals(((BigDecimal) r2.get("B")).intValue(), 17);
+        assertEquals(r2.get("C"), dat);
     }
-    
+
     @Test
     public void TestRefCursor() throws SQLException {
-         ProcedureCaller p = new ProcedureCaller(connection);
-         Box<Object> b = new Box<>();
-         Date dat = new Date(2001,12,1);
-         p.callPositional("p1.pcursor2", 17,"xyz",dat,b);
-         ArrayList<Map<String,Object>> l = (ArrayList<Map<String,Object>>) b.value;
-         assertTrue(l.size()==2);
-         Map<String,Object> r2 = l.get(1);
-         assertEquals(r2.get("V"), "xyz");
-         assertEquals(((BigDecimal)r2.get("N")).intValue(), 17);
-         assertEquals(r2.get("D"), dat);
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<Object> b = new Box<>();
+        Date dat = new Date(2001, 12, 1);
+        p.callPositional("p1.pcursor2", 17, "xyz", dat, b);
+        ArrayList<Map<String, Object>> l = (ArrayList<Map<String, Object>>) b.value;
+        assertTrue(l.size() == 2);
+        Map<String, Object> r2 = l.get(1);
+        assertEquals(r2.get("V"), "xyz");
+        assertEquals(((BigDecimal) r2.get("N")).intValue(), 17);
+        assertEquals(r2.get("D"), dat);
     }
-    
+
     @Test
     public void TestRefCursor3() throws SQLException {
-         ProcedureCaller p = new ProcedureCaller(connection);
-         Box<Object> b = new Box<>();
-           Exception ex = null;
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<Object> b = new Box<>();
+        Exception ex = null;
         try {
-         p.callPositional("p1.pcursor3",b);
-        } catch(Exception exe) {
-            ex=exe;
+            p.callPositional("p1.pcursor3", b);
+        } catch (Exception exe) {
+            ex = exe;
         }
-        assertTrue(ex!=null && ex instanceof RuntimeException);
+        assertTrue(ex != null && ex instanceof RuntimeException);
         assertTrue(ex.getMessage().contains("%rowtype"));
+    }
+
+    @Test
+    public void TestIndexBy() throws SQLException {
+        int n = 20;
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> args = new HashMap<>();
+        TreeMap<String, String> ai = new TreeMap<>();
+        for (int i = 0; i < n; i++) {
+            ai.put("k" + i, "v" + i);
+        }
+        args.put("AI", ai);
+        TreeMap<Integer, String> bi = new TreeMap<>();
+        for (int i = 0; i < n; i++) {
+            bi.put(i, "v" + i);
+        }
+        args.put("BI", bi);
+        Map<String, Object> res = p.call("p1.pindex_tab", args);
+        TreeMap<String, String> ao = (TreeMap<String, String>) res.get("AO");
+        TreeMap<Integer, String> bo = (TreeMap<Integer, String>) res.get("BO");
+        assertTrue(ao.size() == n);
+        for (int i = 0; i < n; i++) {
+            assertTrue(ao.get("xk" + i).equals(ai.get("k" + i) + "y"));
+        }
+
+        assertTrue(bo.size() == n);
+        for (int i = 0; i < n; i++) {
+            assertTrue(bo.get(2 * i).equals(bi.get(i) + "y"));
+        }
     }
 }

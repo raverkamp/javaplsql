@@ -29,6 +29,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import oracle.jdbc.OracleCallableStatement;
 import oracle.jdbc.OracleConnection;
@@ -198,6 +199,37 @@ public final class ProcedureCaller {
         }
         ResolvedName rn = resolveName(connection, name, true);
         return rn.schema + "." + name;
+    }
+
+    // determine the type of an index by table
+    // it is not possible to do this by looking at the data dictionary
+    // so we execute a small block to determine this
+    // returns V for index by varchar2 and I for index by binary_integer
+    // this is a dirty trick 
+    private char isIndexByVarcharOrInt(String owner, String package_, String type) {
+        try (CallableStatement s = this.connection.prepareCall(
+                "declare a " + owner + "." + package_ + "." + type + ";\n"
+                + " x varchar2(1):='y';\n"
+                + "begin\n"
+                + "begin\n"
+                + "if a.exists('akl') then\n"
+                // there has to something here otherwise oracle will optimize
+                // to much, just the statement null; will not work!
+                + "  x:='z';\n"
+                + "end if;\n"
+                + "x:='X';\n"
+                + "exception when others then\n"
+                + " x:= null;\n"
+                + " end;\n"
+                + "?:=x;\n"
+                + "end;")) {
+            s.registerOutParameter(1, Types.VARCHAR);
+            s.execute();
+            String x = s.getString(1);
+            return null == x ? 'I' : 'V';
+        } catch (SQLException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     // represents types from PL/SQL
@@ -499,6 +531,165 @@ public final class ProcedureCaller {
         }
     }
 
+    private static class IndexByStringTableType extends Type {
+
+        String owner;
+        String package_;
+        String name;
+        Type slottype;
+
+        @Override
+        public String plsqlName() {
+            return this.owner + "." + this.package_ + "." + this.name;
+        }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            if (o == null) {
+                a.addNumber((BigDecimal) null);
+            } else {
+                TreeMap tm = (TreeMap) o;
+                a.addNumber(tm.size());
+                for (Object entry : tm.entrySet()) {
+                    Map.Entry<String, Object> kv = (Map.Entry<String, Object>) entry;
+                    a.addString(kv.getKey());
+                    this.slottype.fillArgArrays(a, kv.getValue());
+                }
+            }
+        }
+
+        @Override
+        public Object readFromResArrays(ResArrays a) {
+            BigDecimal b = a.readBigDecimal();
+            if (b == null) {
+                return null;
+            } else {
+                int size = b.intValue();
+                TreeMap<String, Object> res = new TreeMap<>();
+                for (int i = 0; i < size; i++) {
+                    String k = a.readString();
+                    res.put(k, this.slottype.readFromResArrays(a));
+                }
+                return res;
+            }
+        }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
+            sb.append("  an.extend;\n");
+            sb.append("  an(an.last) := " + source + ".count;\n");
+            String index = "i" + counter.incrementAndGet();
+            sb.append("declare " + index + " varchar2(32000) := " + source + ".first;\n");
+            sb.append("begin\n");
+            sb.append(" loop\n");
+            sb.append("exit when " + index + " is null;\n");
+            sb.append("  av.extend; av(av.last) := " + index + ";\n");
+            this.slottype.genWriteThing(sb, counter, source + "(" + index + ")");
+            sb.append(" " + index + " := " + source + ".next(" + index + ");\n");
+            sb.append("end loop;\n");
+            sb.append("end;\n");
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
+            sb.append("size_ := an(inn); inn:= inn+1;\n");
+            sb.append("if size_ is null then\n");
+            sb.append(" null;\n");
+            sb.append("else\n");
+            String index = "i" + counter.incrementAndGet();
+            String key = "k" + counter.incrementAndGet();
+            String newTarget = target + "(" + key + ")";
+            sb.append("declare " + key + " varchar2(32000);\n");
+            sb.append("begin\n");
+            sb.append("  for ").append(index).append(" in 1 .. size_ loop\n");
+            sb.append("  " + key + " :=av(inv); inv := inv+1;\n");
+            this.slottype.genReadOutThing(sb, counter, newTarget);
+            sb.append("end loop;\n");
+            sb.append("end;\n");
+            sb.append("end if;\n");
+        }
+    }
+
+    private static class IndexByIntegerTableType extends Type {
+
+        String owner;
+        String package_;
+        String name;
+        Type slottype;
+
+        @Override
+        public String plsqlName() {
+            return this.owner + "." + this.package_ + "." + this.name;
+        }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            if (o == null) {
+                a.addNumber((BigDecimal) null);
+            } else {
+                TreeMap tm = (TreeMap) o;
+                a.addNumber(tm.size());
+                for (Object entry : tm.entrySet()) {
+                    Map.Entry<Integer, Object> kv = (Map.Entry<Integer, Object>) entry;
+                    a.addNumber(kv.getKey());
+                    this.slottype.fillArgArrays(a, kv.getValue());
+                }
+            }
+        }
+
+        @Override
+        public Object readFromResArrays(ResArrays a) {
+            BigDecimal b = a.readBigDecimal();
+            if (b == null) {
+                return null;
+            } else {
+                int size = b.intValue();
+                TreeMap<Integer, Object> res = new TreeMap<>();
+                for (int i = 0; i < size; i++) {
+                    Integer k = a.readBigDecimal().intValueExact();
+                    res.put(k, this.slottype.readFromResArrays(a));
+                }
+                return res;
+            }
+        }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
+            sb.append("  an.extend;\n");
+            sb.append("  an(an.last) := " + source + ".count;\n");
+
+            String index = "i" + counter.incrementAndGet();
+            sb.append("declare " + index + " integer := " + source + ".first;\n");
+            sb.append("begin\n");
+            sb.append(" loop\n");
+            sb.append("exit when " + index + " is null;\n");
+            sb.append("  an.extend; an(an.last) := " + index + ";\n");
+            this.slottype.genWriteThing(sb, counter, source + "(" + index + ")");
+            sb.append(" " + index + " := " + source + ".next(" + index + ");\n");
+            sb.append("end loop;\n");
+            sb.append("end;\n");
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
+            sb.append("size_ := an(inn); inn:= inn+1;\n");
+            sb.append("if size_ is null then\n");
+            sb.append(" null;\n");
+            sb.append("else\n");
+            String index = "i" + counter.incrementAndGet();
+            String key = "k" + counter.incrementAndGet();
+            String newTarget = target + "(" + key + ")";
+            sb.append("declare " + key + " integer;\n");
+            sb.append("begin\n");
+            sb.append("  for ").append(index).append(" in 1 .. size_ loop\n");
+            sb.append("  " + key + " :=an(inn); inn := inn+1;\n");
+            this.slottype.genReadOutThing(sb, counter, newTarget);
+            sb.append("end loop;\n");
+            sb.append("end;\n");
+            sb.append("end if;\n");
+        }
+    }
+
     private static class SysRefCursorType extends Type {
 
         // tricky : unlike for tables we do not know the size in advance
@@ -745,7 +936,7 @@ public final class ProcedureCaller {
     // get a Field from Args a and advance the internal position to the position
     // after this Field.
     // due to the recursive structure of PL/SQL types this method is recursive
-    private static Field eatArg(ArrayDeque<ArgumentsRow> a) {
+    private Field eatArg(ArrayDeque<ArgumentsRow> a) {
         ArgumentsRow r = a.getFirst();
         Field f = new Field();
         f.name = r.argument_name;
@@ -803,9 +994,9 @@ public final class ProcedureCaller {
                 return f;
             }
             TypedRefCursorType t = new TypedRefCursorType();
-             t.owner = r.type_owner;
-             t.package_ = r.type_name;
-             t.name = r.type_subname;
+            t.owner = r.type_owner;
+            t.package_ = r.type_name;
+            t.name = r.type_subname;
             Field f2 = eatArg(a);
             if (f2.type instanceof RecordType) {
                 t.rectype = (RecordType) f2.type;
@@ -818,10 +1009,36 @@ public final class ProcedureCaller {
                 throw new RuntimeException("unknown record type for cursor");
             }
         }
+        if (r.data_type.equals("PL/SQL TABLE")) {
+            char tt = isIndexByVarcharOrInt(r.type_owner, r.type_name, r.type_subname);
+            if (tt == 'V') {
+                IndexByStringTableType t = new IndexByStringTableType();
+                t.owner = r.type_owner;
+                t.package_ = r.type_name;
+                t.name = r.type_subname;
+                a.pop();
+                Field f2 = eatArg(a);
+                t.slottype = f2.type;
+                f.type = t;
+                return f;
+            } else if (tt == 'I') {
+                IndexByIntegerTableType t = new IndexByIntegerTableType();
+                t.owner = r.type_owner;
+                t.package_ = r.type_name;
+                t.name = r.type_subname;
+                a.pop();
+                Field f2 = eatArg(a);
+                t.slottype = f2.type;
+                f.type = t;
+                return f;
+            } else {
+                throw new Error("BUG");
+            }
+        }
         throw new RuntimeException("unsupported type: " + r.data_type);
     }
 
-    private static Procedure eatProc(ArrayDeque<ArgumentsRow> a) {
+    private Procedure eatProc(ArrayDeque<ArgumentsRow> a) {
         Procedure p = new Procedure();
         ArgumentsRow r = a.getFirst();
         p.package_ = r.package_name;
@@ -930,7 +1147,7 @@ public final class ProcedureCaller {
         sb.append("inn integer :=1;\n");
         sb.append("inv integer :=1;\n");
         sb.append("ind integer :=1;\n");
-        sb.append("size_ integer;");
+        sb.append("size_ integer;\n");
         if (p.returnType != null) {
             sb.append("result$ ").append(p.returnType.plsqlName()).append(";\n");
         }
@@ -985,7 +1202,6 @@ public final class ProcedureCaller {
         sb.append("?:= ad;\n");
         sb.append("dbms_output.put_line('f '||to_char(sysdate,'mi:ss'));\n");
         sb.append("end;\n");
-        System.out.println(sb.toString());
         return sb.toString();
     }
 

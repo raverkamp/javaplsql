@@ -46,6 +46,12 @@ type return_cur2 is ref cursor return all_tables%rowtype;
 
 procedure pcursor3(c out return_cur2);
 
+type tabv is table of varchar2(200) index by varchar2(200);
+type tabi is table of varchar2(200) index by binary_integer;
+
+procedure pindex_tab(ai tabv,bi tabi,ao out tabv,bo out tabi);
+
+
 end;
 ## p1_body
 create or replace package body p1 as
@@ -146,6 +152,29 @@ end;
 procedure pcursor3(c out return_cur2) is
 begin
   open c for select * from all_tables where rownum <100;
+end;
+
+
+procedure pindex_tab(ai tabv,bi tabi,ao out tabv,bo out tabi) is
+xa tabv;
+xb tabi;
+v varchar2(200);
+i binary_integer;
+begin
+  v := ai.first;
+  loop
+    exit when v is null;
+    xa('x'||v) := ai(v)||'y';
+    v := ai.next(v);
+  end loop;
+  i := bi.first;
+  loop
+    exit when i is null;
+    xb(i*2) := bi(i)||'y';
+    i := bi.next(i);
+  end loop;
+  ao := xa;
+  bo := xb;  
 end;
 
 end;

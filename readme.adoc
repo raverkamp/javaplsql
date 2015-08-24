@@ -56,6 +56,9 @@ public void setDateTableName(String dateTableName)
 * String -> varchar2
 * java.util.Date,java.sql.Date,java.sql.TimeStamp -> date
 * Boolean, boolean -> boolean
+* TreeMap<String,xyz> -> table of xyz_in_plsql index by varchar2(..);
+* TreeMap<Integer,xyz> -> table of xyz_in_plsql index by binary_integer;
+
 
 .PL/SQL to Java
 * table -> ArrayList
@@ -66,8 +69,9 @@ public void setDateTableName(String dateTableName)
 * boolean -> Boolean
 * sys_refcursor -> ArrayList of Map<String,Object>
 * typed refcursor -> ArrayList of Map<String,Object>
+* index by table -> TreeMap<String,?> or TreeMap<Integer,?>
 
-Object types, clob, blob, raw and "index by table" are currently not supported. 
+Object types, clob, blob, raw and timestamp are not supported. 
 All records must have a named type, i.e. not defined as "%rowtype".
 
 == Example
