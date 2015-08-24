@@ -51,6 +51,11 @@ type tabi is table of varchar2(200) index by binary_integer;
 
 procedure pindex_tab(ai tabv,bi tabi,ao out tabv,bo out tabi);
 
+type tabvv is table of tabv index by varchar2(200);
+
+procedure pindex_tab2(x in out tabvv);
+
+
 
 end;
 ## p1_body
@@ -175,6 +180,11 @@ begin
   end loop;
   ao := xa;
   bo := xb;  
+end;
+
+procedure pindex_tab2(x in out tabvv) is
+begin
+  null;
 end;
 
 end;

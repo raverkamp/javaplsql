@@ -387,4 +387,31 @@ public class FuncTest {
             assertTrue(bo.get(2 * i).equals(bi.get(i) + "y"));
         }
     }
+
+    @Test
+    public void TestIndexBy2() throws SQLException {
+        int n = 10;
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> args = new HashMap<>();
+        TreeMap<String, Object> tm = new TreeMap<>();
+        args.put("X", tm);
+        for (int i = 0; i < n; i++) {
+            TreeMap<String, String> h = new TreeMap<>();
+            for (int j = 0; j < n; j++) {
+                h.put("" + j + "," + i, "v" + j + "," + i);
+            }
+            tm.put("a" + i, h);
+        }
+        Map<String, Object> res = p.call("p1.pindex_tab2", args);
+        TreeMap<String, Object> tm2 = (TreeMap<String, Object>) res.get("X");
+        assertTrue(tm2.size() == tm.size());
+        for (Map.Entry<String, Object> kv : tm.entrySet()) {
+            TreeMap<String, String> h1 = (TreeMap<String, String>) kv.getValue();
+            TreeMap<String, String> h2 = (TreeMap<String, String>) tm2.get(kv.getKey());
+            assertTrue(h1.size() == h2.size());
+            for (Map.Entry<String, String> kv2 : h1.entrySet()) {
+                assertTrue(kv2.getValue().equals(h2.get(kv2.getKey())));
+            }
+        }
+    }
 }
