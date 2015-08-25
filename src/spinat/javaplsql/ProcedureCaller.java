@@ -62,6 +62,7 @@ public final class ProcedureCaller {
     private String numberTableName = "NUMBER_ARRAY";
     private String varchar2TableName = "VARCHAR2_ARRAY";
     private String dateTableName = "DATE_ARRAY";
+    private String rawTableName = "RAW_ARRAY";
 
     // unfortunately the JDBC retrival of Array Descriptors does not care about
     // set current_schema = 
@@ -69,6 +70,7 @@ public final class ProcedureCaller {
     private String effectiveNumberTableName = null;
     private String effectiveVarchar2TableName = null;
     private String effectiveDateTableName = null;
+    private String effectiveRawTableName = null;
 
     public ProcedureCaller(OracleConnection connection) {
         this.connection = connection;
@@ -117,6 +119,21 @@ public final class ProcedureCaller {
     public void setDateTableName(String dateTableName) {
         this.dateTableName = dateTableName;
         this.effectiveDateTableName = null;
+    }
+
+    /**
+     * @return the dateTableName
+     */
+    public String getRawTableName() {
+        return rawTableName;
+    }
+
+    /**
+     * @param dateTableName the dateTableName to set
+     */
+    public void setRawTableName(String dateTableName) {
+        this.rawTableName = dateTableName;
+        this.effectiveRawTableName = null;
     }
 
     /*
@@ -393,6 +410,52 @@ public final class ProcedureCaller {
         @Override
         public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
             sb.append(target).append(":= av(inv); inv := inv+1;\n");
+        }
+    }
+
+    private static class RawType extends Type {
+
+        String name; // varchar2, number, integer ...
+        int size; // 0 if unbounded, i.e. as direct parameter
+
+        @Override
+        public String plsqlName() {
+            if (size == 0) {
+                return "raw(32767)";
+            } else {
+                return "raw(" + size + ")";
+            }
+        }
+
+        @Override
+        public void fillArgArrays(ArgArrays a, Object o) {
+            byte[] b = (byte[]) o;
+            if (b == null) {
+                a.addRaw(b);
+            } else {
+                int allowed_size = this.size == 0 ? 32767 : this.size;
+                if (b.length <= allowed_size) {
+                    a.addRaw(b);
+                } else {
+                    throw new ConversionException("raw/byte[] is to large, allowed are "
+                            + allowed_size + ", given length " + b.length);
+                }
+            }
+        }
+
+        @Override
+        public Object readFromResArrays(ResArrays a) {
+            return a.readRaw();
+        }
+
+        @Override
+        public void genWriteThing(StringBuilder sb, AtomicInteger counter, String source) {
+            sb.append("ar.extend; ar(ar.last) := " + source + ";\n");
+        }
+
+        @Override
+        public void genReadOutThing(StringBuilder sb, AtomicInteger counter, String target) {
+            sb.append(target).append(":= ar(inr); inr := inr+1;\n");
         }
     }
 
@@ -959,6 +1022,14 @@ public final class ProcedureCaller {
             a.pop();
             return f;
         }
+        if (r.data_type.equals("RAW")) {
+            RawType vt = new RawType();
+            vt.name = "RAW";
+            vt.size = r.data_length;
+            f.type = vt;
+            a.pop();
+            return f;
+        }
         if (r.data_type.equals("TABLE")) {
             TableType t = new TableType();
             t.owner = r.type_owner;
@@ -1074,6 +1145,7 @@ public final class ProcedureCaller {
         ArrayList<BigDecimal> decimal = new ArrayList<>();
         ArrayList<String> varchar2 = new ArrayList<>();
         ArrayList<java.sql.Timestamp> date = new ArrayList<>();
+        ArrayList<byte[]> raw = new ArrayList<>();
 
         public void addNumber(Number n) {
             if (n == null) {
@@ -1104,6 +1176,10 @@ public final class ProcedureCaller {
                 this.date.add(new Timestamp(d.getTime()));
             }
         }
+
+        public void addRaw(byte[] r) {
+            this.raw.add(r);
+        }
     }
 
     private static class ResArrays {
@@ -1111,10 +1187,12 @@ public final class ProcedureCaller {
         ArrayList<BigDecimal> decimal = new ArrayList<>();
         ArrayList<String> varchar2 = new ArrayList<>();
         ArrayList<java.sql.Timestamp> date = new ArrayList<>();
+        ArrayList<byte[]> raw = new ArrayList<>();
 
         int posd = 0;
         int posv = 0;
         int posdate = 0;
+        int posr = 0;
 
         public String readString() {
             String res = varchar2.get(posv);
@@ -1136,6 +1214,12 @@ public final class ProcedureCaller {
             }
             return new java.util.Date(ts.getTime());
         }
+
+        public byte[] readRaw() {
+            byte[] res = raw.get(posr);
+            posr++;
+            return res;
+        }
     }
 
     private String createStatementString(Procedure p) {
@@ -1144,9 +1228,11 @@ public final class ProcedureCaller {
         sb.append("an " + this.numberTableName + ";\n");
         sb.append("av " + this.varchar2TableName + " ;\n");
         sb.append("ad " + this.dateTableName + ";\n");
+        sb.append("ar " + this.rawTableName + ";\n");
         sb.append("inn integer :=1;\n");
         sb.append("inv integer :=1;\n");
         sb.append("ind integer :=1;\n");
+        sb.append("inr integer :=1;\n");
         sb.append("size_ integer;\n");
         if (p.returnType != null) {
             sb.append("result$ ").append(p.returnType.plsqlName()).append(";\n");
@@ -1160,6 +1246,7 @@ public final class ProcedureCaller {
         sb.append("an :=?;\n");
         sb.append("av :=?;\n");
         sb.append("ad :=?;\n");
+        sb.append("ar :=?;\n");
         sb.append("dbms_output.put_line('b '||to_char(sysdate,'mi:ss'));\n");
         AtomicInteger counter = new AtomicInteger(0);
         for (int i = 0; i < p.arguments.size(); i++) {
@@ -1173,6 +1260,7 @@ public final class ProcedureCaller {
         sb.append("an:= " + this.numberTableName + "();\n");
         sb.append("av:= " + this.varchar2TableName + "();\n");
         sb.append("ad:= " + this.dateTableName + "();\n");
+        sb.append("ar:= " + this.rawTableName + "();\n");
         if (p.returnType != null) {
             sb.append("result$:=");
         }
@@ -1200,6 +1288,7 @@ public final class ProcedureCaller {
         sb.append("?:= an;\n");
         sb.append("?:= av;\n");
         sb.append("?:= ad;\n");
+        sb.append("?:= ar;\n");
         sb.append("dbms_output.put_line('f '||to_char(sysdate,'mi:ss'));\n");
         sb.append("end;\n");
         return sb.toString();
@@ -1219,10 +1308,14 @@ public final class ProcedureCaller {
         if (this.effectiveDateTableName == null) {
             this.effectiveDateTableName = computeEffectiveName(this.dateTableName);
         }
+        if (this.effectiveRawTableName == null) {
+            this.effectiveRawTableName = computeEffectiveName(this.rawTableName);
+        }
 
         final ARRAY no;
         final ARRAY vo;
         final ARRAY do_;
+        final ARRAY ro;
         try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
             ArgArrays aa = new ArgArrays();
             for (Argument arg : p.arguments) {
@@ -1240,14 +1333,17 @@ public final class ProcedureCaller {
             cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
             cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
             cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
+            cstm.setArray(4, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveRawTableName, aa.raw.toArray(new byte[0][])));
 
-            cstm.registerOutParameter(4, OracleTypes.ARRAY, this.effectiveNumberTableName);
-            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
-            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveDateTableName);
+            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveNumberTableName);
+            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
+            cstm.registerOutParameter(7, OracleTypes.ARRAY, this.effectiveDateTableName);
+            cstm.registerOutParameter(8, OracleTypes.ARRAY, this.effectiveRawTableName);
             cstm.execute();
-            no = cstm.getARRAY(4);
-            vo = cstm.getARRAY(5);
-            do_ = cstm.getARRAY(6);
+            no = cstm.getARRAY(5);
+            vo = cstm.getARRAY(6);
+            do_ = cstm.getARRAY(7);
+            ro = cstm.getARRAY(8);
         }
         ResArrays ra = new ResArrays();
 
@@ -1260,6 +1356,9 @@ public final class ProcedureCaller {
         }
         for (Object o : (Object[]) do_.getArray()) {
             ra.date.add((Timestamp) o);
+        }
+        for (Object o : (Object[]) ro.getArray()) {
+            ra.raw.add((byte[]) o);
         }
         HashMap<String, Object> res = new HashMap<>();
         if (p.returnType != null) {

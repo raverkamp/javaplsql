@@ -55,6 +55,7 @@ type tabvv is table of tabv index by varchar2(200);
 
 procedure pindex_tab2(x in out tabvv);
 
+procedure praw(x in raw,y out raw);
 
 
 end;
@@ -185,6 +186,11 @@ end;
 procedure pindex_tab2(x in out tabvv) is
 begin
   null;
+end;
+
+procedure praw(x in raw,y out raw) is
+begin
+  y:= x;
 end;
 
 end;

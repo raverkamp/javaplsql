@@ -50,13 +50,16 @@ public class ParamTableNameTest {
         String na = "na" + i;
         String va = "va" + i;
         String da = "da" + i;
+        String ra = "ra" + i;
         Ddl.createType(connection, "create type " + na + " as table of number;");
         Ddl.createType(connection, "create type " + va + " as table of varchar2(32767);");
         Ddl.createType(connection, "create type " + da + " as table of date;");
+        Ddl.createType(connection, "create type " + ra + " as table of raw(32767);");
         ProcedureCaller p = new ProcedureCaller(connection);
         p.setNumberTableName(na);
         p.setVarchar2TableName(va);
         p.setDateTableName(da);
+        p.setRawTableName(ra);
         HashMap<String, Object> ar = new HashMap<>();
         ar.put("XI", 12);
         ar.put("YI", "x");

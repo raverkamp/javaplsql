@@ -49,6 +49,7 @@ public class FuncTest {
         Ddl.createType(connection, "create type number_array as table of number;");
         Ddl.createType(connection, "create type varchar2_array as table of varchar2(32767);");
         Ddl.createType(connection, "create type date_array as table of date;");
+        Ddl.createType(connection, "create type raw_array as table of raw(32767);");
     }
 
     @After
@@ -412,6 +413,53 @@ public class FuncTest {
             for (Map.Entry<String, String> kv2 : h1.entrySet()) {
                 assertTrue(kv2.getValue().equals(h2.get(kv2.getKey())));
             }
+        }
+    }
+
+    @Test
+    public void testRaw() throws SQLException {
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> args = new HashMap<>();
+        byte[] b = new byte[]{1, 2, 3, 4, 76, 97};
+        args.put("X", b);
+        Map<String, Object> res = p.call("p1.praw", args);
+        byte[] b2 = (byte[]) res.get("Y");
+        assertTrue(b2.length == b.length);
+        for (int i = 0; i < b2.length; i++) {
+            assertTrue(b[i] == b2[i]);
+        }
+    }
+    
+    @Test
+    public void testRaw2() throws SQLException {
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> args = new HashMap<>();
+        byte[] b = new byte[0];
+        args.put("X", b);
+        Map<String, Object> res = p.call("p1.praw", args);
+        byte[] b2 = (byte[]) res.get("Y");
+        assertTrue(b2==null);
+        //
+        args.put("X", null);
+        Map<String, Object> res2 = p.call("p1.praw", args);
+        byte[] b22 = (byte[]) res.get("Y");
+        assertTrue(b22==null);
+    }
+    
+     @Test
+    public void testRawBig() throws SQLException {
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Map<String, Object> args = new HashMap<>();
+        byte[] b = new byte[32767];
+        for(int i=0; i<b.length;i++) {
+            b[i] = (byte)(i*7&255);
+        }
+        args.put("X", b);
+        Map<String, Object> res = p.call("p1.praw", args);
+        byte[] b2 = (byte[]) res.get("Y");
+        assertTrue(b2.length == b.length);
+        for (int i = 0; i < b2.length; i++) {
+            assertTrue(b[i] == b2[i]);
         }
     }
 }
