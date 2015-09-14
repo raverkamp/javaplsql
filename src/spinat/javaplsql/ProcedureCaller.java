@@ -1242,12 +1242,10 @@ public final class ProcedureCaller {
             sb.append(";\n");
         }
         sb.append("begin\n");
-        sb.append("dbms_output.put_line('a '||to_char(sysdate,'mi:ss'));\n");
         sb.append("an :=?;\n");
         sb.append("av :=?;\n");
         sb.append("ad :=?;\n");
         sb.append("ar :=?;\n");
-        sb.append("dbms_output.put_line('b '||to_char(sysdate,'mi:ss'));\n");
         AtomicInteger counter = new AtomicInteger(0);
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
@@ -1256,11 +1254,13 @@ public final class ProcedureCaller {
             }
             a.type.genReadOutThing(sb, counter, "p" + i + "$");
         }
-        sb.append("dbms_output.put_line('c '||to_char(sysdate,'mi:ss'));\n");
+        // at this point the parameters have been filled, clear the
+        // parameter arrays
         sb.append("an:= " + this.numberTableName + "();\n");
         sb.append("av:= " + this.varchar2TableName + "();\n");
         sb.append("ad:= " + this.dateTableName + "();\n");
         sb.append("ar:= " + this.rawTableName + "();\n");
+        // generate teh actual procedure call
         if (p.returnType != null) {
             sb.append("result$:=");
         }
@@ -1273,7 +1273,7 @@ public final class ProcedureCaller {
             sb.append("p" + i + "$");
         }
         sb.append(");\n");
-        sb.append("dbms_output.put_line('d '||to_char(sysdate,'mi:ss'));\n");
+        // after the procedure call
         if (p.returnType != null) {
             p.returnType.genWriteThing(sb, counter, "result$");
         }
@@ -1284,12 +1284,10 @@ public final class ProcedureCaller {
             }
             a.type.genWriteThing(sb, counter, "p" + i + "$");
         }
-        sb.append("dbms_output.put_line('e '||to_char(sysdate,'mi:ss'));\n");
         sb.append("?:= an;\n");
         sb.append("?:= av;\n");
         sb.append("?:= ad;\n");
         sb.append("?:= ar;\n");
-        sb.append("dbms_output.put_line('f '||to_char(sysdate,'mi:ss'));\n");
         sb.append("end;\n");
         return sb.toString();
     }
@@ -1389,6 +1387,9 @@ public final class ProcedureCaller {
         if (this.effectiveDateTableName == null) {
             this.effectiveDateTableName = computeEffectiveName(this.dateTableName);
         }
+        if (this.effectiveRawTableName == null) {
+            this.effectiveRawTableName = computeEffectiveName(this.rawTableName);
+        }
         if (p.arguments.size() > args.length) {
             throw new RuntimeException("not enough arguments supplied");
         }
@@ -1399,6 +1400,7 @@ public final class ProcedureCaller {
         final ARRAY no;
         final ARRAY vo;
         final ARRAY do_;
+        final ARRAY ro;
         try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
             ArgArrays aa = new ArgArrays();
             {
@@ -1417,14 +1419,17 @@ public final class ProcedureCaller {
             cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
             cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
             cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
+            cstm.setArray(4, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveRawTableName, aa.raw.toArray(new byte[0][])));
 
-            cstm.registerOutParameter(4, OracleTypes.ARRAY, this.effectiveNumberTableName);
-            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
-            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveDateTableName);
+            cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveNumberTableName);
+            cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
+            cstm.registerOutParameter(7, OracleTypes.ARRAY, this.effectiveDateTableName);
+            cstm.registerOutParameter(8, OracleTypes.ARRAY, this.effectiveRawTableName);
             cstm.execute();
-            no = cstm.getARRAY(4);
-            vo = cstm.getARRAY(5);
-            do_ = cstm.getARRAY(6);
+            no = cstm.getARRAY(5);
+            vo = cstm.getARRAY(6);
+            do_ = cstm.getARRAY(7);
+            ro = cstm.getARRAY(8);
         }
         ResArrays ra = new ResArrays();
 

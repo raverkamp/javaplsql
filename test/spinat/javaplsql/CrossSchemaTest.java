@@ -58,6 +58,7 @@ public class CrossSchemaTest {
             Ddl.createType(connection, "create type number_array as table of number;");
             Ddl.createType(connection, "create type varchar2_array as table of varchar2(32767);");
             Ddl.createType(connection, "create type date_array as table of date;");
+            Ddl.createType(connection, "create type raw_array as table of raw(32767);");
         }
     }
 
@@ -72,7 +73,7 @@ public class CrossSchemaTest {
         Ddl.dropSynonyms(con2);
         try (OracleConnection con1 = getCon1()) {
             Ddl.dropGrants(con1);
-            for (String s : new String[]{"p1", "number_array", "varchar2_array", "date_array"}) {
+            for (String s : new String[]{"p1", "number_array", "varchar2_array", "date_array", "raw_array"}) {
                 Ddl.call(con1, " grant execute on " + s + " to public");
                 Ddl.call(con2, " create or replace synonym " + s + " for " + schema1 + "." + s);
             }
@@ -170,7 +171,7 @@ public class CrossSchemaTest {
         Ddl.dropSynonyms(con2);
         try (OracleConnection con1 = getCon1()) {
             Ddl.dropGrants(con1);
-            for (String s : new String[]{"p1", "number_array", "varchar2_array", "date_array"}) {
+            for (String s : new String[]{"p1", "number_array", "varchar2_array", "date_array", "raw_array"}) {
                 Ddl.call(con1, " grant execute on " + s + " to public");
             }
         }
@@ -195,7 +196,7 @@ public class CrossSchemaTest {
         Ddl.dropSynonyms(con2);
         try (OracleConnection con1 = getCon1()) {
             Ddl.dropGrants(con1);
-            for (String s : new String[]{"p1", "number_array", "varchar2_array", "date_array"}) {
+            for (String s : new String[]{"p1", "number_array", "varchar2_array", "date_array", "raw_array"}) {
                 Ddl.call(con1, " grant execute on " + s + " to public");
             }
         }

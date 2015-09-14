@@ -3,7 +3,7 @@
 The *javaplsql* system supports calling Oracle PL/SQL procedures from Java via JDBC with
 minimal preparatory work. Its main purpose is to make calling procdures with 
 complex arguments (records, tables) simpler. There is no code generation, 
-you just need to install three java collection types.
+you just need to install three PL/SQL collection types.
 
 == API
 There is one class +spinat.javaplsql.ProcedureCaller+. The constructor
@@ -143,12 +143,10 @@ and copy the Java file ProcedureCaller into your project
 (into what ever package you like).
 
 == Things to do
-* add support for raw
-* add support for index by tables
 * convert "java records" (class constining only of public fields) to oracle records
   the other way around?, type map for return records?
-* try to separate conversion exeptions (our fault) from exceptions in the procedure
-  wrap the actual procedure call with an eception handler
+* try to separate conversion exceptions (our fault) from exceptions in the procedure
+  wrap the actual procedure call with an exception handler
 * handling of date-like typs, Timestamp, java.sql.Date. java.util.Date
 * type checks in java, if string is too long for record field, the exception
-should be thrown in Java.
+  should be thrown in Java.
