@@ -25,8 +25,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
@@ -37,6 +40,36 @@ import oracle.jdbc.OracleTypes;
 import oracle.sql.ARRAY;
 
 public final class ProcedureCaller {
+    
+    static Date stringToDate(String s) {
+        if (s == null || s.equals("")) {
+            return null;
+        }
+        if (s.length() <= 10) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            try {
+                return sdf.parse(s);
+            } catch (ParseException ex) {
+                throw new RuntimeException("not in a valid date format:" + s);
+            }
+        } else {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+            try {
+                return sdf.parse(s);
+            } catch (ParseException ex) {
+                throw new RuntimeException("not in a valid date format:" + s);
+            }
+        }
+    }
+    
+    static String dateToString(Date d) {
+        if (d==null) {
+            return null;
+        }
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        return sdf.format(d);
+    }
 
     public static class ConversionException extends RuntimeException {
 
@@ -59,6 +92,8 @@ public final class ProcedureCaller {
     }
 
     private final OracleConnection connection;
+    private final boolean downCasing;
+    private final boolean exportDateAsString;
     private String numberTableName = "NUMBER_ARRAY";
     private String varchar2TableName = "VARCHAR2_ARRAY";
     private String dateTableName = "DATE_ARRAY";
@@ -74,6 +109,14 @@ public final class ProcedureCaller {
 
     public ProcedureCaller(OracleConnection connection) {
         this.connection = connection;
+        this.downCasing = false;
+        this.exportDateAsString = false;
+    }
+    
+    public ProcedureCaller(OracleConnection connection, boolean downCasing, boolean exportDateAsString) {
+        this.connection = connection;
+        this.downCasing = downCasing;
+        this.exportDateAsString = exportDateAsString;
     }
 
     /**
@@ -284,7 +327,15 @@ public final class ProcedureCaller {
     // the PL/SQL standrad types, identfied by their name DATE, NUMBER
     private static class NamedType extends Type {
 
-        String name; // number, integer ...
+        
+        final String name; // number, integer ...
+        final boolean exportDateAsString;
+        
+        public NamedType(String name, boolean exportDateAsString) {
+            this.name = name;
+            this.exportDateAsString = exportDateAsString;
+        }
+        
 
         @Override
         public String plsqlName() {
@@ -310,7 +361,13 @@ public final class ProcedureCaller {
                 }
 
             } else if (this.name.equals("DATE")) {
-                a.addDate((java.util.Date) o);
+                java.util.Date d;
+                if (o != null && o instanceof String) {
+                    d = stringToDate((String) o);
+                } else {
+                    d = (java.util.Date) o;
+                }
+                a.addDate(d);
             } else {
                 throw new RuntimeException("unsupported named type");
             }
@@ -323,7 +380,12 @@ public final class ProcedureCaller {
                     || this.name.equals("BINARY_INTEGER")) {
                 return a.readBigDecimal();
             } else if (this.name.equals("DATE")) {
-                return a.readDate();
+                Date d = a.readDate();
+                if (this.exportDateAsString) {
+                    return dateToString(d);
+                } else {
+                   return d;
+                }
             } else if (this.name.equals("PL/SQL BOOLEAN")) {
                 BigDecimal x = a.readBigDecimal();
                 if (x == null) {
@@ -470,6 +532,7 @@ public final class ProcedureCaller {
         String owner;
         String package_;
         String name;
+        boolean downCasing = false;
         ArrayList<Field> fields;
 
         @Override
@@ -483,8 +546,9 @@ public final class ProcedureCaller {
                 Map m = (Map) o;
                 for (Field f : this.fields) {
                     Object x;
-                    if (m.containsKey(f.name)) {
-                        x = m.get(f.name);
+                    String fname = this.downCasing ? f.name.toLowerCase() : f.name;
+                    if (m.containsKey(fname)) {
+                        x = m.get(fname);
                         f.type.fillArgArrays(a, x);
                     } else {
                         throw new ConversionException("slot not found: " + f.name);
@@ -498,7 +562,8 @@ public final class ProcedureCaller {
             HashMap<String, Object> m = new HashMap<>();
             for (Field f : this.fields) {
                 Object o = f.type.readFromResArrays(a);
-                m.put(f.name, o);
+                String fname = this.downCasing ? f.name.toLowerCase() : f.name;
+                m.put(fname, o);
             }
             return m;
         }
@@ -764,6 +829,13 @@ public final class ProcedureCaller {
         // support for clobs, cursor in result set?
         // maybe a procedure whcih reads out the data and returns 
         // a handle and an array (or just a string?) with the columns types for readput
+        
+        final boolean exportDateAsString;
+        
+        public SysRefCursorType(boolean exportDateAsString) {
+            this.exportDateAsString = exportDateAsString;
+        }
+        
         @Override
         public String plsqlName() {
             return "sys_refcursor";
@@ -797,7 +869,12 @@ public final class ProcedureCaller {
                     } else if (t.equals("V")) {
                         o = a.readString();
                     } else if (t.equals("D")) {
-                        o = a.readDate();
+                        final Date d = a.readDate();
+                        if (this.exportDateAsString) {
+                            o = dateToString(d);
+                        } else {
+                            o = d;
+                        }
                     } else {
                         throw new Error("unknwon column type: " + t);
                     }
@@ -1008,8 +1085,7 @@ public final class ProcedureCaller {
                 || r.data_type.equals("INTEGER")
                 || r.data_type.equals("PL/SQL BOOLEAN")
                 || r.data_type.equals("BINARY_INTEGER")) {
-            NamedType t = new NamedType();
-            t.name = r.data_type;
+            NamedType t = new NamedType(r.data_type, this.exportDateAsString);
             f.type = t;
             a.pop();
             return f;
@@ -1043,6 +1119,7 @@ public final class ProcedureCaller {
         }
         if (r.data_type.equals("PL/SQL RECORD")) {
             RecordType t = new RecordType();
+            t.downCasing = this.downCasing;
             t.owner = r.type_owner;
             t.package_ = r.type_name;
             t.name = r.type_subname;
@@ -1060,7 +1137,7 @@ public final class ProcedureCaller {
         if (r.data_type.equals("REF CURSOR")) {
             a.pop();
             if (a.isEmpty() || a.getFirst().data_level == 0) {
-                SysRefCursorType t = new SysRefCursorType();
+                SysRefCursorType t = new SysRefCursorType(this.exportDateAsString);
                 f.type = t;
                 return f;
             }
@@ -1320,8 +1397,9 @@ public final class ProcedureCaller {
                 if (arg.direction.equals("OUT")) {
                     continue;
                 }
-                if (args.containsKey(arg.name)) {
-                    Object o = args.get(arg.name);
+                String aname = this.downCasing ? arg.name.toLowerCase(): arg.name;
+                if (args.containsKey(aname)) {
+                    Object o = args.get(aname);
                     arg.type.fillArgArrays(aa, o);
                 } else {
                     throw new ConversionException("could not find argument " + arg.name);
@@ -1368,7 +1446,8 @@ public final class ProcedureCaller {
                 continue;
             }
             Object o = arg.type.readFromResArrays(ra);
-            res.put(arg.name, o);
+            String aname = this.downCasing ? arg.name.toLowerCase() : arg.name; 
+            res.put(aname, o);
         }
         return res;
     }
