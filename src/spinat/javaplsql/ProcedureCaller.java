@@ -40,7 +40,7 @@ import oracle.jdbc.OracleTypes;
 import oracle.sql.ARRAY;
 
 public final class ProcedureCaller {
-    
+
     static Date stringToDate(String s) {
         if (s == null || s.equals("")) {
             return null;
@@ -62,9 +62,9 @@ public final class ProcedureCaller {
             }
         }
     }
-    
+
     static String dateToString(Date d) {
-        if (d==null) {
+        if (d == null) {
             return null;
         }
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -112,7 +112,7 @@ public final class ProcedureCaller {
         this.downCasing = false;
         this.exportDateAsString = false;
     }
-    
+
     public ProcedureCaller(OracleConnection connection, boolean downCasing, boolean exportDateAsString) {
         this.connection = connection;
         this.downCasing = downCasing;
@@ -327,15 +327,13 @@ public final class ProcedureCaller {
     // the PL/SQL standrad types, identfied by their name DATE, NUMBER
     private static class NamedType extends Type {
 
-        
         final String name; // number, integer ...
         final boolean exportDateAsString;
-        
+
         public NamedType(String name, boolean exportDateAsString) {
             this.name = name;
             this.exportDateAsString = exportDateAsString;
         }
-        
 
         @Override
         public String plsqlName() {
@@ -384,7 +382,7 @@ public final class ProcedureCaller {
                 if (this.exportDateAsString) {
                     return dateToString(d);
                 } else {
-                   return d;
+                    return d;
                 }
             } else if (this.name.equals("PL/SQL BOOLEAN")) {
                 BigDecimal x = a.readBigDecimal();
@@ -535,6 +533,10 @@ public final class ProcedureCaller {
         boolean downCasing = false;
         ArrayList<Field> fields;
 
+        public boolean isAnonymous() {
+            return this.owner == null;
+        }
+
         @Override
         public String plsqlName() {
             return this.owner + "." + this.package_ + "." + this.name;
@@ -676,7 +678,8 @@ public final class ProcedureCaller {
             if (o == null) {
                 a.addNumber((BigDecimal) null);
             } else {
-                TreeMap tm = (TreeMap) o;
+                //JSONObject is a Map!
+                Map tm = (Map) o;
                 a.addNumber(tm.size());
                 for (Object entry : tm.entrySet()) {
                     Map.Entry<String, Object> kv = (Map.Entry<String, Object>) entry;
@@ -755,11 +758,23 @@ public final class ProcedureCaller {
             if (o == null) {
                 a.addNumber((BigDecimal) null);
             } else {
-                TreeMap tm = (TreeMap) o;
+                Map tm = (Map) o;
                 a.addNumber(tm.size());
                 for (Object entry : tm.entrySet()) {
-                    Map.Entry<Integer, Object> kv = (Map.Entry<Integer, Object>) entry;
-                    a.addNumber(kv.getKey());
+                    Map.Entry kv = (Map.Entry) entry;
+                    Object key = kv.getKey();
+                    Object val = kv.getValue();
+                    if (key == null) {
+                        throw new NullPointerException("key in integer array is null");
+                    }
+                    if (key instanceof String) {
+                        Integer x = Integer.parseInt((String) key);
+                        a.addNumber(x);
+                    } else if (key instanceof Integer) {
+                        a.addNumber((Integer) key);
+                    } else {
+                        throw new RuntimeException("expecting an integer as key");
+                    }
                     this.slottype.fillArgArrays(a, kv.getValue());
                 }
             }
@@ -829,13 +844,14 @@ public final class ProcedureCaller {
         // support for clobs, cursor in result set?
         // maybe a procedure whcih reads out the data and returns 
         // a handle and an array (or just a string?) with the columns types for readput
-        
         final boolean exportDateAsString;
-        
-        public SysRefCursorType(boolean exportDateAsString) {
+        final boolean downCasing;
+
+        public SysRefCursorType(boolean exportDateAsString, boolean downCasing) {
             this.exportDateAsString = exportDateAsString;
+            this.downCasing = downCasing;
         }
-        
+
         @Override
         public String plsqlName() {
             return "sys_refcursor";
@@ -852,7 +868,11 @@ public final class ProcedureCaller {
             ArrayList<String> colnames = new ArrayList<>();
             ArrayList<String> coltypes = new ArrayList<>();
             for (int i = 0; i < colcount; i++) {
-                colnames.add(a.readString());
+                String colname = a.readString();
+                if (this.downCasing) {
+                    colname = colname.toLowerCase();
+                }
+                colnames.add(colname);
                 coltypes.add(a.readString());
             }
             ArrayList<HashMap<String, Object>> l = new ArrayList<>();
@@ -1130,6 +1150,9 @@ public final class ProcedureCaller {
                 t.fields.add(eatArg(a));
             }
             f.type = t;
+            if (t.isAnonymous()) {
+                throw new RuntimeException("anonymous record types (%rowtype) are not supported");
+            }
             return f;
         }
         // as of Oracle 11.2.0.2.0 ref cursors can not be part of records or be
@@ -1137,7 +1160,7 @@ public final class ProcedureCaller {
         if (r.data_type.equals("REF CURSOR")) {
             a.pop();
             if (a.isEmpty() || a.getFirst().data_level == 0) {
-                SysRefCursorType t = new SysRefCursorType(this.exportDateAsString);
+                SysRefCursorType t = new SysRefCursorType(this.exportDateAsString, this.downCasing);
                 f.type = t;
                 return f;
             }
@@ -1148,10 +1171,10 @@ public final class ProcedureCaller {
             Field f2 = eatArg(a);
             if (f2.type instanceof RecordType) {
                 t.rectype = (RecordType) f2.type;
-                f.type = t;
-                if (t.rectype.name == null) {
-                    throw new RuntimeException("anonymous record types (%rowtype) are not supported");
+                if (t.rectype.isAnonymous()) {
+                    throw new RuntimeException("anonymous record types (%rowtype) are not supported for typed ref cursors");
                 }
+                f.type = t;
                 return f;
             } else {
                 throw new RuntimeException("unknown record type for cursor");
@@ -1397,7 +1420,7 @@ public final class ProcedureCaller {
                 if (arg.direction.equals("OUT")) {
                     continue;
                 }
-                String aname = this.downCasing ? arg.name.toLowerCase(): arg.name;
+                String aname = this.downCasing ? arg.name.toLowerCase() : arg.name;
                 if (args.containsKey(aname)) {
                     Object o = args.get(aname);
                     arg.type.fillArgArrays(aa, o);
@@ -1446,7 +1469,7 @@ public final class ProcedureCaller {
                 continue;
             }
             Object o = arg.type.readFromResArrays(ra);
-            String aname = this.downCasing ? arg.name.toLowerCase() : arg.name; 
+            String aname = this.downCasing ? arg.name.toLowerCase() : arg.name;
             res.put(aname, o);
         }
         return res;
