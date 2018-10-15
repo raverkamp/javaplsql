@@ -1499,7 +1499,7 @@ public final class ProcedureCaller {
         }
 
         final java.sql.Array no;
-        final java.sql.Array  vo;
+        final java.sql.Array vo;
         final java.sql.Array do_;
         final java.sql.Array ro;
         try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
