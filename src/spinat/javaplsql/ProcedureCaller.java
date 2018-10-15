@@ -1529,8 +1529,8 @@ public final class ProcedureCaller {
             cstm.execute();
             no = cstm.getArray(5);
             vo = cstm.getArray(6);
-            do_ = cstm.getARRAY(7);
-            ro = cstm.getARRAY(8);
+            do_ = cstm.getArray(7);
+            ro = cstm.getArray(8);
         }
         ResArrays ra = new ResArrays();
 

@@ -124,7 +124,7 @@ public class CrossSchemaTest {
         // but is is not possible to resolve number_array
         Exception ex = null;
         try {
-            Object o = con2.createARRAY("NUMBER_ARRAY", new BigDecimal[0]);
+            Object o = con2.createOracleArray("NUMBER_ARRAY", new BigDecimal[0]);
         } catch (Exception e) {
             ex = e;
         }
@@ -135,7 +135,7 @@ public class CrossSchemaTest {
         con2 = getCon2();
         ex = null;
         try {
-            Object o = con2.createARRAY(schema1 + ".NUMBER_ARRAY", new BigDecimal[0]);
+            Object o = con2.createOracleArray(schema1 + ".NUMBER_ARRAY", new BigDecimal[0]);
         } catch (Exception e) {
             ex = e;
         }
@@ -144,7 +144,7 @@ public class CrossSchemaTest {
         // very funny, lower case is not OK
         ex = null;
         try {
-            Object o = con2.createARRAY(schema1 + ".number_array", new BigDecimal[0]);
+            Object o = con2.createOracleArray(schema1 + ".number_array", new BigDecimal[0]);
         } catch (Exception e) {
             ex = e;
         }
@@ -156,7 +156,7 @@ public class CrossSchemaTest {
         ex = null;
         try {
             Ddl.call(con2, "create or replace synonym number_array for " + schema1 + ".number_array");
-            Object o = con2.createARRAY("NUMBER_ARRAY", new BigDecimal[0]);
+            Object o = con2.createOracleArray("NUMBER_ARRAY", new BigDecimal[0]);
         } catch (RuntimeException e) {
             ex = e;
             System.out.println(ex);
