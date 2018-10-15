@@ -1,6 +1,9 @@
 /build/*
 /config1.txt
 /dist/*
-/nbproject/*
 /test/config1.txt
 /readme.html
+/libs/*
+/nbproject/genfiles.properties
+/nbproject/private/private.properties
+/nbproject/private/private.xml
