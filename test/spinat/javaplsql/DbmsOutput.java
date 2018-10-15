@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import oracle.jdbc.OracleCallableStatement;
 import oracle.jdbc.OracleConnection;
 import oracle.jdbc.OracleTypes;
-import oracle.sql.ARRAY;
 
 /*
  fetch dbmsoutput fromdatabase 
@@ -25,7 +24,7 @@ public class DbmsOutput {
             cstm.registerOutParameter(1, OracleTypes.ARRAY, "DBMSOUTPUT_LINESARRAY");
             cstm.registerOutParameter(2, Types.INTEGER);
             cstm.execute();
-            ARRAY arr = cstm.getARRAY(1);
+            java.sql.Array arr = cstm.getArray(1);
             if (arr == null) {
                 return null;
             }

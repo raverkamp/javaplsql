@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import oracle.jdbc.OracleCallableStatement;
 import oracle.jdbc.OracleConnection;
 import oracle.jdbc.OracleTypes;
-import oracle.sql.ARRAY;
 
 public final class ProcedureCaller {
 
@@ -1410,10 +1409,10 @@ public final class ProcedureCaller {
             this.effectiveRawTableName = computeEffectiveName(this.rawTableName);
         }
 
-        final ARRAY no;
-        final ARRAY vo;
-        final ARRAY do_;
-        final ARRAY ro;
+        final java.sql.Array no;
+        final java.sql.Array vo;
+        final java.sql.Array do_;
+        final java.sql.Array ro;
         try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
             ArgArrays aa = new ArgArrays();
             for (Argument arg : p.arguments) {
@@ -1429,20 +1428,20 @@ public final class ProcedureCaller {
                 }
             }
 
-            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
-            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
-            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
-            cstm.setArray(4, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveRawTableName, aa.raw.toArray(new byte[0][])));
+            cstm.setArray(1, this.connection.createOracleArray(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
+            cstm.setArray(2, this.connection.createOracleArray(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
+            cstm.setArray(3, this.connection.createOracleArray(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
+            cstm.setArray(4, this.connection.createOracleArray(this.effectiveRawTableName, aa.raw.toArray(new byte[0][])));
 
             cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveNumberTableName);
             cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
             cstm.registerOutParameter(7, OracleTypes.ARRAY, this.effectiveDateTableName);
             cstm.registerOutParameter(8, OracleTypes.ARRAY, this.effectiveRawTableName);
             cstm.execute();
-            no = cstm.getARRAY(5);
-            vo = cstm.getARRAY(6);
-            do_ = cstm.getARRAY(7);
-            ro = cstm.getARRAY(8);
+            no = cstm.getArray(5);
+            vo = cstm.getArray(6);
+            do_ = cstm.getArray(7);
+            ro = cstm.getArray(8);
         }
         ResArrays ra = new ResArrays();
 
@@ -1499,10 +1498,10 @@ public final class ProcedureCaller {
             throw new RuntimeException("too many arguments supplied");
         }
 
-        final ARRAY no;
-        final ARRAY vo;
-        final ARRAY do_;
-        final ARRAY ro;
+        final java.sql.Array no;
+        final java.sql.Array  vo;
+        final java.sql.Array do_;
+        final java.sql.Array ro;
         try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
             ArgArrays aa = new ArgArrays();
             {
@@ -1518,18 +1517,18 @@ public final class ProcedureCaller {
                     i++;
                 }
             }
-            cstm.setArray(1, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
-            cstm.setArray(2, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
-            cstm.setArray(3, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
-            cstm.setArray(4, (oracle.sql.ARRAY) this.connection.createARRAY(this.effectiveRawTableName, aa.raw.toArray(new byte[0][])));
+            cstm.setArray(1, this.connection.createOracleArray(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
+            cstm.setArray(2, this.connection.createOracleArray(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
+            cstm.setArray(3, this.connection.createOracleArray(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
+            cstm.setArray(4, this.connection.createOracleArray(this.effectiveRawTableName, aa.raw.toArray(new byte[0][])));
 
             cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveNumberTableName);
             cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
             cstm.registerOutParameter(7, OracleTypes.ARRAY, this.effectiveDateTableName);
             cstm.registerOutParameter(8, OracleTypes.ARRAY, this.effectiveRawTableName);
             cstm.execute();
-            no = cstm.getARRAY(5);
-            vo = cstm.getARRAY(6);
+            no = cstm.getArray(5);
+            vo = cstm.getArray(6);
             do_ = cstm.getARRAY(7);
             ro = cstm.getARRAY(8);
         }
