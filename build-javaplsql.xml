@@ -11,7 +11,7 @@
     <property name="jre8" value="${env.jre8}"/>
   
     <target name="clean"
-          description="clean up" >
+            description="clean up" >
         <delete dir="${build}"/>
         <delete dir="${dist}"/>
     </target>
@@ -22,12 +22,12 @@
     </target>
   
     <target name="compile" depends="init"
-          description="compile the source " >
+            description="compile the source " >
         <javac target="1.8" source="1.8" srcdir="${src}" destdir="${build}" 
-           includeantruntime="false"
-           bootclasspath="${jre8}/lib/rt.jar"
-           deprecation="true"
-           debug="true">
+               includeantruntime="false"
+               bootclasspath="${jre8}/lib/rt.jar"
+               deprecation="true"
+               debug="true">
             <compilerarg value="-Xlint:unchecked"/>
             <classpath>
                 <pathelement location="${libs}/ojdbc8.jar"/>
@@ -36,7 +36,7 @@
     </target>
   
     <target name="jar" depends="compile"
-          description="generate the jar file" >
+            description="generate the jar file" >
         <jar jarfile="${dist}/javaplsql.jar" basedir="${build}"/>
     </target>
 </project>
