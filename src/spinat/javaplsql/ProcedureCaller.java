@@ -1545,6 +1545,9 @@ public final class ProcedureCaller {
         for (Object o : (Object[]) do_.getArray()) {
             ra.date.add((Timestamp) o);
         }
+        for (Object o : (Object[]) ro.getArray()) {
+            ra.raw.add((byte[]) o);
+        }
         Object result;
         if (p.returnType != null) {
             result = p.returnType.readFromResArrays(ra);
