@@ -319,7 +319,7 @@ public class FuncTest {
     }
 
     @Test
-    public void TestSysRefCursor() throws SQLException {
+    public void TestSysRefCursorPos() throws SQLException {
         ProcedureCaller p = new ProcedureCaller(connection);
         Box<Object> b = new Box<>();
         Date dat = new Date(2001, 12, 1);
@@ -333,12 +333,48 @@ public class FuncTest {
     }
 
     @Test
-    public void TestRefCursor() throws SQLException {
+    public void TestSysRefCursorNamed() throws SQLException {
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<Object> b = new Box<>();
+        Date dat = new Date(2001, 12, 1);
+        HashMap<String, Object> args = new HashMap<>();
+        args.put("N", 17);
+        args.put("V", "xyz");
+        args.put("D", dat);
+        Map<String, Object> res = p.call("p1.pcursor1", args);
+        ArrayList<Map<String, Object>> l = (ArrayList<Map<String, Object>>) res.get("C");
+        assertTrue(l.size() == 2);
+        Map<String, Object> r2 = l.get(1);
+        assertEquals(r2.get("A"), "xyz");
+        assertEquals(((BigDecimal) r2.get("B")).intValue(), 17);
+        assertEquals(r2.get("C"), dat);
+    }
+
+    @Test
+    public void TestRefCursorPos() throws SQLException {
         ProcedureCaller p = new ProcedureCaller(connection);
         Box<Object> b = new Box<>();
         Date dat = new Date(2001, 12, 1);
         p.callPositional("p1.pcursor2", 17, "xyz", dat, b);
         ArrayList<Map<String, Object>> l = (ArrayList<Map<String, Object>>) b.value;
+        assertTrue(l.size() == 2);
+        Map<String, Object> r2 = l.get(1);
+        assertEquals(r2.get("V"), "xyz");
+        assertEquals(((BigDecimal) r2.get("N")).intValue(), 17);
+        assertEquals(r2.get("D"), dat);
+    }
+
+    @Test
+    public void TestRefCursorNamed() throws SQLException {
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<Object> b = new Box<>();
+        Date dat = new Date(2001, 12, 1);
+        HashMap<String, Object> args = new HashMap<>();
+        args.put("N", 17);
+        args.put("V", "xyz");
+        args.put("D", dat);
+        Map<String, Object> res = p.call("p1.pcursor2", args);
+        ArrayList<Map<String, Object>> l = (ArrayList<Map<String, Object>>) res.get("C");
         assertTrue(l.size() == 2);
         Map<String, Object> r2 = l.get(1);
         assertEquals(r2.get("V"), "xyz");

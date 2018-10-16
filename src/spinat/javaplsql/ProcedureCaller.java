@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
@@ -31,11 +32,13 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import oracle.jdbc.OracleCallableStatement;
 import oracle.jdbc.OracleConnection;
+import oracle.jdbc.OracleResultSet;
 import oracle.jdbc.OracleTypes;
 
 public final class ProcedureCaller {
@@ -965,6 +968,41 @@ public final class ProcedureCaller {
         }
     }
 
+    private static ArrayList<Map<String, Object>> readSysRefCursor(SysRefCursorType ty, ResultSet rs) throws SQLException {
+
+        ResultSetMetaData md = rs.getMetaData();
+        ArrayList<String> fields = new ArrayList<>();
+        for (int i = 0; i < md.getColumnCount(); i++) {
+            fields.add(md.getColumnName(i + 1));
+        }
+        ArrayList<Map<String, Object>> res = new ArrayList<>();
+        while (rs.next()) {
+            Map<String, Object> r = new HashMap<String, Object>();
+            for (int i = 0; i < md.getColumnCount(); i++) {
+                int ct = md.getColumnType(i + 1);
+                if (ct == Types.VARCHAR) {
+                    r.put(fields.get(i), rs.getString(i + 1));
+                } else if (ct == Types.BIGINT || ct == Types.DECIMAL || ct == Types.NUMERIC || ct == Types.INTEGER) {
+                    r.put(fields.get(i), rs.getBigDecimal(i + 1));
+                } else if (ct == OracleTypes.CURSOR) {
+                    ResultSet rs2 = ((OracleResultSet) rs).getCursor(i + 1);
+                    r.put(fields.get(i), readSysRefCursor(null, rs2));
+                } else if (ct == Types.DATE) {
+                    r.put(fields.get(i), rs.getTimestamp(i + 1));
+                } else if (ct == Types.TIMESTAMP) {
+                    Timestamp ts = rs.getTimestamp(i + 1);
+                    r.put(fields.get(i), new java.util.Date(ts.getTime()));
+                } else if (ct == Types.VARBINARY) {
+                    r.put(fields.get(i), rs.getBytes(i + 1));
+                } else {
+                    throw new RuntimeException("type not supported: " + ct + " for column " + fields.get(i) + ", typename=" + md.getColumnTypeName(i + 1));
+                }
+            }
+            res.add(r);
+        }
+        return res;
+    }
+
     private static class TypedRefCursorType extends Type {
 
         String owner;
@@ -1380,7 +1418,7 @@ public final class ProcedureCaller {
         }
         for (int i = 0; i < p.arguments.size(); i++) {
             Argument a = p.arguments.get(i);
-            if (a.direction.equals("IN")) {
+            if (a.direction.equals("IN") || (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
                 continue;
             }
             a.type.genWriteThing(sb, counter, "p" + i + "$");
@@ -1389,6 +1427,12 @@ public final class ProcedureCaller {
         sb.append("?:= av;\n");
         sb.append("?:= ad;\n");
         sb.append("?:= ar;\n");
+        for (int i = 0; i < p.arguments.size(); i++) {
+            Argument a = p.arguments.get(i);
+            if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
+                sb.append("?:= p" + i + "$;\n");
+            }
+        }
         sb.append("end;\n");
         return sb.toString();
     }
@@ -1415,6 +1459,7 @@ public final class ProcedureCaller {
         final java.sql.Array vo;
         final java.sql.Array do_;
         final java.sql.Array ro;
+        final ArrayList<ArrayList<Map<String, Object>>> outCursors = new ArrayList<>();
         try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
             ArgArrays aa = new ArgArrays();
             for (Argument arg : p.arguments) {
@@ -1439,11 +1484,26 @@ public final class ProcedureCaller {
             cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
             cstm.registerOutParameter(7, OracleTypes.ARRAY, this.effectiveDateTableName);
             cstm.registerOutParameter(8, OracleTypes.ARRAY, this.effectiveRawTableName);
+            int j = 8;
+            for (Argument a : p.arguments) {
+                if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
+                    j++;
+                    cstm.registerOutParameter(j, OracleTypes.CURSOR);
+                }
+            }
             cstm.execute();
             no = cstm.getArray(5);
             vo = cstm.getArray(6);
             do_ = cstm.getArray(7);
             ro = cstm.getArray(8);
+            int j1 = 8;
+            for (Argument a : p.arguments) {
+                if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
+                    j1++;
+                    ResultSet rs = cstm.getCursor(j1);
+                    outCursors.add(readSysRefCursor(null, rs));
+                }
+            }
         }
         ResArrays ra = new ResArrays();
 
@@ -1460,6 +1520,7 @@ public final class ProcedureCaller {
         for (Object o : (Object[]) ro.getArray()) {
             ra.raw.add((byte[]) o);
         }
+
         HashMap<String, Object> res = new HashMap<>();
         if (p.returnType != null) {
             Object o = p.returnType.readFromResArrays(ra);
@@ -1469,7 +1530,13 @@ public final class ProcedureCaller {
             if (arg.direction.equals("IN")) {
                 continue;
             }
-            Object o = arg.type.readFromResArrays(ra);
+            final Object o;
+            if ((arg.type instanceof SysRefCursorType || arg.type instanceof TypedRefCursorType)) {
+                o = outCursors.get(0);
+                outCursors.remove(0);
+            } else {
+                o = arg.type.readFromResArrays(ra);
+            }
             String aname = this.downCasing ? arg.name.toLowerCase() : arg.name;
             res.put(aname, o);
         }
@@ -1504,6 +1571,7 @@ public final class ProcedureCaller {
         final java.sql.Array vo;
         final java.sql.Array do_;
         final java.sql.Array ro;
+        final ArrayList<ArrayList<Map<String, Object>>> outCursors = new ArrayList<>();
         try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
             ArgArrays aa = new ArgArrays();
             {
@@ -1528,11 +1596,26 @@ public final class ProcedureCaller {
             cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
             cstm.registerOutParameter(7, OracleTypes.ARRAY, this.effectiveDateTableName);
             cstm.registerOutParameter(8, OracleTypes.ARRAY, this.effectiveRawTableName);
+            int j = 8;
+            for (Argument a : p.arguments) {
+                if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
+                    j++;
+                    cstm.registerOutParameter(j, OracleTypes.CURSOR);
+                }
+            }
             cstm.execute();
             no = cstm.getArray(5);
             vo = cstm.getArray(6);
             do_ = cstm.getArray(7);
             ro = cstm.getArray(8);
+            int j1 = 8;
+            for (Argument a : p.arguments) {
+                if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
+                    j1++;
+                    ResultSet rs = cstm.getCursor(j1);
+                    outCursors.add(readSysRefCursor(null, rs));
+                }
+            }
         }
         ResArrays ra = new ResArrays();
 
@@ -1562,7 +1645,13 @@ public final class ProcedureCaller {
                 if (!arg.direction.equals("IN")) {
 
                     if (args[i] != null && args[i] instanceof Box) {
-                        Object o = arg.type.readFromResArrays(ra);
+                        final Object o;
+                        if ((arg.type instanceof SysRefCursorType || arg.type instanceof TypedRefCursorType)) {
+                            o = outCursors.get(0);
+                            outCursors.remove(0);
+                        } else {
+                            o = arg.type.readFromResArrays(ra);
+                        }
                         @SuppressWarnings("unchecked")
                         Box<Object> b = (Box<Object>) args[i];
                         b.value = o;
@@ -1686,4 +1775,5 @@ public final class ProcedureCaller {
         }
         return this.callPositional(procs.get(overload - 1), args);
     }
+
 }
