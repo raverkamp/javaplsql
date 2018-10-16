@@ -968,12 +968,16 @@ public final class ProcedureCaller {
         }
     }
 
-    private static ArrayList<Map<String, Object>> readSysRefCursor(SysRefCursorType ty, ResultSet rs) throws SQLException {
+    private static ArrayList<Map<String, Object>> readSysRefCursor(boolean dateAsString, boolean downcasing, ResultSet rs) throws SQLException {
 
         ResultSetMetaData md = rs.getMetaData();
         ArrayList<String> fields = new ArrayList<>();
         for (int i = 0; i < md.getColumnCount(); i++) {
-            fields.add(md.getColumnName(i + 1));
+            if (downcasing) {
+                fields.add(md.getColumnName(i + 1).toLowerCase());
+            } else {
+                fields.add(md.getColumnName(i + 1));
+            }
         }
         ArrayList<Map<String, Object>> res = new ArrayList<>();
         while (rs.next()) {
@@ -986,13 +990,16 @@ public final class ProcedureCaller {
                     r.put(fields.get(i), rs.getBigDecimal(i + 1));
                 } else if (ct == OracleTypes.CURSOR) {
                     try (ResultSet rs2 = ((OracleResultSet) rs).getCursor(i + 1)) {
-                        r.put(fields.get(i), readSysRefCursor(null, rs2));
+                        r.put(fields.get(i), readSysRefCursor(dateAsString, downcasing, rs2));
                     }
-                } else if (ct == Types.DATE) {
-                    r.put(fields.get(i), rs.getTimestamp(i + 1));
-                } else if (ct == Types.TIMESTAMP) {
+                } else if (ct == Types.DATE || ct == Types.TIMESTAMP) {
                     Timestamp ts = rs.getTimestamp(i + 1);
-                    r.put(fields.get(i), new java.util.Date(ts.getTime()));
+                    java.util.Date d = new java.util.Date(ts.getTime());
+                    if (dateAsString) {
+                        r.put(fields.get(i), dateToString(d));
+                    } else {
+                        r.put(fields.get(i), d);
+                    }
                 } else if (ct == Types.VARBINARY) {
                     r.put(fields.get(i), rs.getBytes(i + 1));
                 } else {
@@ -1502,7 +1509,7 @@ public final class ProcedureCaller {
                 if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
                     j1++;
                     try (ResultSet rs = cstm.getCursor(j1)) {
-                        outCursors.add(readSysRefCursor(null, rs));
+                        outCursors.add(readSysRefCursor(this.exportDateAsString, this.downCasing, rs));
                     }
                 }
             }
@@ -1615,7 +1622,7 @@ public final class ProcedureCaller {
                 if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
                     j1++;
                     try (ResultSet rs = cstm.getCursor(j1)) {
-                        outCursors.add(readSysRefCursor(null, rs));
+                        outCursors.add(readSysRefCursor(this.exportDateAsString, this.downCasing, rs));
                     }
                 }
             }
