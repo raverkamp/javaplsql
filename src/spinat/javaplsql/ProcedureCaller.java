@@ -620,7 +620,7 @@ public final class ProcedureCaller {
                 return null;
             } else {
                 int size = b.intValue();
-                ArrayList res = new ArrayList();
+                ArrayList<Object> res = new ArrayList<>();
                 for (int i = 0; i < size; i++) {
                     res.add(this.slottype.readFromResArrays(a));
                 }
@@ -681,6 +681,7 @@ public final class ProcedureCaller {
                 Map tm = (Map) o;
                 a.addNumber(tm.size());
                 for (Object entry : tm.entrySet()) {
+                    @SuppressWarnings("unchecked")
                     Map.Entry<String, Object> kv = (Map.Entry<String, Object>) entry;
                     a.addString(kv.getKey());
                     this.slottype.fillArgArrays(a, kv.getValue());
@@ -988,6 +989,7 @@ public final class ProcedureCaller {
                 if (a.readBigDecimal().intValue() == 0) {
                     break;
                 }
+                @SuppressWarnings("unchecked")
                 HashMap<String, Object> m = (HashMap<String, Object>) rectype.readFromResArrays(a);
                 l.add(m);
             }
@@ -1561,7 +1563,9 @@ public final class ProcedureCaller {
 
                     if (args[i] != null && args[i] instanceof Box) {
                         Object o = arg.type.readFromResArrays(ra);
-                        ((Box) args[i]).value = o;
+                        @SuppressWarnings("unchecked")
+                        Box<Object> b = (Box<Object>) args[i];
+                        b.value = o;
                     } else {
                         throw new RuntimeException("need a box for parameter " + arg.name);
                     }
