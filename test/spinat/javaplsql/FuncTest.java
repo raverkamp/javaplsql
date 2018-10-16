@@ -395,17 +395,17 @@ public class FuncTest {
         assertTrue(ex != null && ex instanceof RuntimeException);
         assertTrue(ex.getMessage().contains("%rowtype"));
     }
-    
-    @Test 
+
+    @Test
     public void TestCursorInCursor() throws SQLException {
         ProcedureCaller p = new ProcedureCaller(connection);
         Box<Object> b = new Box<>();
         p.callPositional("p1.cursor_in_cursor", b);
         ArrayList<Map<String, Object>> l = (ArrayList<Map<String, Object>>) b.value;
-        assertTrue(l.size() ==1);
+        assertTrue(l.size() == 1);
         Object o = l.get(0).get("DUMMY2");
         ArrayList<Map<String, Object>> l2 = (ArrayList<Map<String, Object>>) o;
-        assertTrue(l2.size() ==1);
+        assertTrue(l2.size() == 1);
         assertEquals("X", l2.get(0).get("DUMMY"));
     }
 
