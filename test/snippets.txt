@@ -57,6 +57,7 @@ procedure pindex_tab2(x in out tabvv);
 
 procedure praw(x in raw,y out raw);
 
+procedure cursor_in_cursor(c out sys_refcursor);
 
 end;
 ## p1_body
@@ -191,6 +192,12 @@ end;
 procedure praw(x in raw,y out raw) is
 begin
   y:= x;
+end;
+
+procedure cursor_in_cursor(c out sys_refcursor) is 
+begin
+  open c for
+   select dummy, cursor(select dummy from dual) as dummy2 from dual;
 end;
 
 end;

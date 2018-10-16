@@ -985,8 +985,9 @@ public final class ProcedureCaller {
                 } else if (ct == Types.BIGINT || ct == Types.DECIMAL || ct == Types.NUMERIC || ct == Types.INTEGER) {
                     r.put(fields.get(i), rs.getBigDecimal(i + 1));
                 } else if (ct == OracleTypes.CURSOR) {
-                    ResultSet rs2 = ((OracleResultSet) rs).getCursor(i + 1);
-                    r.put(fields.get(i), readSysRefCursor(null, rs2));
+                    try (ResultSet rs2 = ((OracleResultSet) rs).getCursor(i + 1)) {
+                        r.put(fields.get(i), readSysRefCursor(null, rs2));
+                    }
                 } else if (ct == Types.DATE) {
                     r.put(fields.get(i), rs.getTimestamp(i + 1));
                 } else if (ct == Types.TIMESTAMP) {
@@ -1500,8 +1501,9 @@ public final class ProcedureCaller {
             for (Argument a : p.arguments) {
                 if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
                     j1++;
-                    ResultSet rs = cstm.getCursor(j1);
-                    outCursors.add(readSysRefCursor(null, rs));
+                    try (ResultSet rs = cstm.getCursor(j1)) {
+                        outCursors.add(readSysRefCursor(null, rs));
+                    }
                 }
             }
         }
@@ -1612,8 +1614,9 @@ public final class ProcedureCaller {
             for (Argument a : p.arguments) {
                 if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
                     j1++;
-                    ResultSet rs = cstm.getCursor(j1);
-                    outCursors.add(readSysRefCursor(null, rs));
+                    try (ResultSet rs = cstm.getCursor(j1)) {
+                        outCursors.add(readSysRefCursor(null, rs));
+                    }
                 }
             }
         }
