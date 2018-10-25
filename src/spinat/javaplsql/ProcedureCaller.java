@@ -1446,12 +1446,13 @@ public final class ProcedureCaller {
     }
 
     private void callProcedure(
-            Procedure p,
-            ArgArrays aa,
-            ResArrays ra,
-            ArrayList<ArrayList<Map<String, Object>>> outCursors) throws SQLException {
-        if (p.plsqlstatement == null) {
-            p.plsqlstatement = createStatementString(p);
+            Procedure proc,
+            ArgArrays argsArrays,
+            ResArrays resultArrays, // used as out parameter, should be empty
+            ArrayList<ArrayList<Map<String, Object>>> outCursors) // used as out parameter, should be empty
+            throws SQLException {
+        if (proc.plsqlstatement == null) {
+            proc.plsqlstatement = createStatementString(proc);
         }
         if (this.effectiveNumberTableName == null) {
             this.effectiveNumberTableName = computeEffectiveName(this.numberTableName);
@@ -1469,19 +1470,19 @@ public final class ProcedureCaller {
         final java.sql.Array vo;
         final java.sql.Array do_;
         final java.sql.Array ro;
-        try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(p.plsqlstatement)) {
+        try (OracleCallableStatement cstm = (OracleCallableStatement) this.connection.prepareCall(proc.plsqlstatement)) {
 
-            cstm.setArray(1, this.connection.createOracleArray(this.effectiveNumberTableName, aa.decimal.toArray(new BigDecimal[0])));
-            cstm.setArray(2, this.connection.createOracleArray(this.effectiveVarchar2TableName, aa.varchar2.toArray(new String[0])));
-            cstm.setArray(3, this.connection.createOracleArray(this.effectiveDateTableName, aa.date.toArray(new Timestamp[0])));
-            cstm.setArray(4, this.connection.createOracleArray(this.effectiveRawTableName, aa.raw.toArray(new byte[0][])));
+            cstm.setArray(1, this.connection.createOracleArray(this.effectiveNumberTableName, argsArrays.decimal.toArray(new BigDecimal[0])));
+            cstm.setArray(2, this.connection.createOracleArray(this.effectiveVarchar2TableName, argsArrays.varchar2.toArray(new String[0])));
+            cstm.setArray(3, this.connection.createOracleArray(this.effectiveDateTableName, argsArrays.date.toArray(new Timestamp[0])));
+            cstm.setArray(4, this.connection.createOracleArray(this.effectiveRawTableName, argsArrays.raw.toArray(new byte[0][])));
 
             cstm.registerOutParameter(5, OracleTypes.ARRAY, this.effectiveNumberTableName);
             cstm.registerOutParameter(6, OracleTypes.ARRAY, this.effectiveVarchar2TableName);
             cstm.registerOutParameter(7, OracleTypes.ARRAY, this.effectiveDateTableName);
             cstm.registerOutParameter(8, OracleTypes.ARRAY, this.effectiveRawTableName);
             int j = 8;
-            for (Argument a : p.arguments) {
+            for (Argument a : proc.arguments) {
                 if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
                     j++;
                     cstm.registerOutParameter(j, OracleTypes.CURSOR);
@@ -1493,7 +1494,7 @@ public final class ProcedureCaller {
             do_ = cstm.getArray(7);
             ro = cstm.getArray(8);
             int j1 = 8;
-            for (Argument a : p.arguments) {
+            for (Argument a : proc.arguments) {
                 if (a.direction.equals("OUT") && (a.type instanceof SysRefCursorType || a.type instanceof TypedRefCursorType)) {
                     j1++;
                     try (ResultSet rs = cstm.getCursor(j1)) {
@@ -1504,46 +1505,46 @@ public final class ProcedureCaller {
         }
 
         for (Object o : (Object[]) no.getArray()) {
-            ra.decimal.add((BigDecimal) o);
+            resultArrays.decimal.add((BigDecimal) o);
         }
 
         for (Object o : (Object[]) vo.getArray()) {
-            ra.varchar2.add((String) o);
+            resultArrays.varchar2.add((String) o);
         }
         for (Object o : (Object[]) do_.getArray()) {
-            ra.date.add((Timestamp) o);
+            resultArrays.date.add((Timestamp) o);
         }
         for (Object o : (Object[]) ro.getArray()) {
-            ra.raw.add((byte[]) o);
+            resultArrays.raw.add((byte[]) o);
         }
     }
 
     private Map<String, Object> call(
-            Procedure p, Map<String, Object> args) throws SQLException {
-        ArgArrays aa = new ArgArrays();
-        for (Argument arg : p.arguments) {
+            Procedure proc, Map<String, Object> args) throws SQLException {
+        ArgArrays argArrays = new ArgArrays();
+        for (Argument arg : proc.arguments) {
             if (arg.direction.equals("OUT")) {
                 continue;
             }
             String aname = this.downCasing ? arg.name.toLowerCase() : arg.name;
             if (args.containsKey(aname)) {
                 Object o = args.get(aname);
-                arg.type.fillArgArrays(aa, o);
+                arg.type.fillArgArrays(argArrays, o);
             } else {
                 throw new ConversionException("could not find argument " + arg.name);
             }
         }
         ResArrays ra = new ResArrays();
         final ArrayList<ArrayList<Map<String, Object>>> outCursors = new ArrayList<>();
-        callProcedure(p, aa, ra, outCursors);
+        callProcedure(proc, argArrays, ra, outCursors);
 
         // convert result array to result
         HashMap<String, Object> res = new HashMap<>();
-        if (p.returnType != null) {
-            Object o = p.returnType.readFromResArrays(ra);
+        if (proc.returnType != null) {
+            Object o = proc.returnType.readFromResArrays(ra);
             res.put("RETURN", o);
         }
-        for (Argument arg : p.arguments) {
+        for (Argument arg : proc.arguments) {
             if (arg.direction.equals("IN")) {
                 continue;
             }
@@ -1561,17 +1562,17 @@ public final class ProcedureCaller {
     }
 
     // call the procedure, for each parameter there must be an entry in Object
-    private Object callPositional(Procedure p, Object[] args) throws SQLException {
-        if (p.arguments.size() > args.length) {
+    private Object callPositional(Procedure proc, Object[] args) throws SQLException {
+        if (proc.arguments.size() > args.length) {
             throw new RuntimeException("not enough arguments supplied");
         }
-        if (p.arguments.size() < args.length) {
+        if (proc.arguments.size() < args.length) {
             throw new RuntimeException("too many arguments supplied");
         }
         ArgArrays aa = new ArgArrays();
         {
             int i = 0;
-            for (Argument arg : p.arguments) {
+            for (Argument arg : proc.arguments) {
                 if (!arg.direction.equals("OUT")) {
                     Object o = args[i];
                     if (o instanceof Box) {
@@ -1584,18 +1585,18 @@ public final class ProcedureCaller {
         }
         ResArrays ra = new ResArrays();
         final ArrayList<ArrayList<Map<String, Object>>> outCursors = new ArrayList<>();
-        callProcedure(p, aa, ra, outCursors);
+        callProcedure(proc, aa, ra, outCursors);
 
         // convert res array and to result and out parameters
         Object result;
-        if (p.returnType != null) {
-            result = p.returnType.readFromResArrays(ra);
+        if (proc.returnType != null) {
+            result = proc.returnType.readFromResArrays(ra);
         } else {
             result = null;
         }
         {
             int i = 0;
-            for (Argument arg : p.arguments) {
+            for (Argument arg : proc.arguments) {
                 if (!arg.direction.equals("IN")) {
 
                     if (args[i] != null && args[i] instanceof Box) {
