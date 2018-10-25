@@ -408,7 +408,22 @@ public class FuncTest {
         assertTrue(l2.size() == 1);
         assertEquals("X", l2.get(0).get("DUMMY"));
     }
-
+    @Test
+    public void TestCursorInCursorInCursor() throws SQLException {
+        ProcedureCaller p = new ProcedureCaller(connection);
+        Box<Object> b = new Box<>();
+        p.callPositional("p1.cursor_in_cursor_in_cursor", b);
+        ArrayList<Map<String, Object>> l = (ArrayList<Map<String, Object>>) b.value;
+        assertTrue(l.size() == 1);
+        Object o2 = l.get(0).get("DUMMY2");
+        ArrayList<Map<String, Object>> l2 = (ArrayList<Map<String, Object>>) o2;
+        assertTrue(l2.size() == 1);
+        assertEquals("X", l2.get(0).get("DUMMY"));
+        Object o3 = l2.get(0).get("DUMMY3");
+        ArrayList<Map<String, Object>> l3 = (ArrayList<Map<String, Object>>) o3;
+        assertEquals("X", l3.get(0).get("DUMMY"));
+    }
+    
     @Test
     public void TestIndexBy() throws SQLException {
         int n = 20;

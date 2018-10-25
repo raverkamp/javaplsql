@@ -59,6 +59,8 @@ procedure praw(x in raw,y out raw);
 
 procedure cursor_in_cursor(c out sys_refcursor);
 
+procedure cursor_in_cursor_in_cursor(c out sys_refcursor);
+
 end;
 ## p1_body
 create or replace package body p1 as
@@ -198,6 +200,12 @@ procedure cursor_in_cursor(c out sys_refcursor) is
 begin
   open c for
    select dummy, cursor(select dummy from dual) as dummy2 from dual;
+end;
+
+procedure cursor_in_cursor_in_cursor(c out sys_refcursor) is 
+begin
+  open c for
+   select dummy, cursor(select dummy, cursor(select * from dual) as dummy3 from dual) as dummy2 from dual;
 end;
 
 end;
